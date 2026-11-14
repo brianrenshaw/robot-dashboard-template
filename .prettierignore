@@ -1,0 +1,4 @@
+backups/
+snapshot/
+workers/app/public/
+package-lock.json

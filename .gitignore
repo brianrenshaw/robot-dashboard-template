@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+*.local
+apps/web/dist/
+workers/app/src/web-assets.generated.ts
+workers/app/public/
+.DS_Store
+coverage/

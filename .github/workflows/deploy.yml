@@ -1,0 +1,91 @@
+# Deploy on every push to main: typecheck, test, apply D1 migrations, deploy both Workers.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "backups/**"
+      - "snapshot/**"
+      - "**.md"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  # A fresh copy has no Cloudflare details yet. Until SETUP.md has been followed, do nothing
+  # (and show a green check, not a failure).
+  ready:
+    runs-on: ubuntu-latest
+    outputs:
+      ok: ${{ steps.check.outputs.ok }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: check
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ] || grep -rq "YOUR[-_]" workers/app/wrangler.jsonc workers/mcp/wrangler.jsonc; then
+            echo "Not set up yet: follow SETUP.md. Nothing was deployed."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: ready
+    if: needs.ready.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build frontend and typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Apply D1 migrations
+        run: npx wrangler d1 migrations apply project-dashboard --remote -c workers/app/wrangler.jsonc
+
+      # Keys and Google sign-ins saved in Settings are encrypted with CONNECTIONS_KEY. Both
+      # Workers must hold the same value. The first time, make a random one here; it is never
+      # printed and never leaves Cloudflare. After that this step changes nothing. Changing the
+      # value would make everything saved in Settings unreadable, so it is never replaced.
+      - name: Make sure both Workers share a connections key
+        run: |
+          has() { npx wrangler secret list -c "$1" | grep -q '"CONNECTIONS_KEY"'; }
+          app=workers/app/wrangler.jsonc
+          mcp=workers/mcp/wrangler.jsonc
+          if has $app && has $mcp; then echo "Already set on both Workers."; exit 0; fi
+          if has $app || has $mcp; then
+            echo "::error::CONNECTIONS_KEY is set on only one Worker. Set the same value on the other, or delete it from both and run this again."
+            exit 1
+          fi
+          KEY=$(openssl rand -base64 48 | tr -d '\n')
+          echo "::add-mask::$KEY"
+          printf '%s' "$KEY" | npx wrangler secret put CONNECTIONS_KEY -c $app
+          printf '%s' "$KEY" | npx wrangler secret put CONNECTIONS_KEY -c $mcp
+
+      - name: Deploy main Worker
+        run: npx wrangler deploy -c workers/app/wrangler.jsonc
+
+      - name: Deploy MCP Worker
+        run: npx wrangler deploy -c workers/mcp/wrangler.jsonc

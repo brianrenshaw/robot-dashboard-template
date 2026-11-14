@@ -1,0 +1,37 @@
+// Main Worker: serves the React app (bundled in by scripts/embed-web.ts) and the /api routes.
+// Protected by Cloudflare Access.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "project-dashboard",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  // To use your own domain (optional, the domain must be in your Cloudflare account), add:
+  //   "routes": [{ "pattern": "dash.example.com", "custom_domain": true }],
+  "preview_urls": false,
+  // Every half hour the Worker refreshes its copy of the connected calendars
+  // (src/index.ts `scheduled`, packages/core/src/sync.ts).
+  "triggers": { "crons": ["*/30 * * * *"] },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "project-dashboard",
+      "database_id": "YOUR_D1_DATABASE_ID",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "vars": {
+    // "production" means Access is required. The local dev bypass only works when this is "local"
+    // AND the request comes from localhost (see src/access.ts).
+    "ENVIRONMENT": "production",
+    // Cloudflare Access (Zero Trust team "YOUR-TEAM", app "Project dashboard").
+    // OWNER_EMAIL is a Worker secret (wrangler secret put OWNER_EMAIL). If any of these is missing,
+    // the API refuses every request.
+    "ACCESS_TEAM_DOMAIN": "YOUR-TEAM.cloudflareaccess.com",
+    "ACCESS_AUD": "YOUR_ACCESS_AUD",
+    "MCP_URL": "https://project-dashboard-mcp.YOUR-SUBDOMAIN.workers.dev/mcp",
+    "CALENDAR_URL": "https://project-dashboard-mcp.YOUR-SUBDOMAIN.workers.dev/calendar.ics"
+  },
+  "observability": { "enabled": true }
+}
