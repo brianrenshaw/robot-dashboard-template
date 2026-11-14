@@ -1,0 +1,93 @@
+# Nightly backup at 3:15 AM Eastern time (and on demand):
+# (To use another time zone, change TZ below and the two cron lines.)
+# It commits your whole database into this repository, so it only runs when the repository is
+# PRIVATE. Do not remove that check.
+# SQL dump of the D1 database into backups/, a readable markdown snapshot into snapshot/,
+# keep the newest 30 dumps, commit and push if anything changed.
+name: Backup
+
+on:
+  schedule:
+    # GitHub cron runs in UTC. 07:15 UTC is 3:15 AM during daylight time (EDT),
+    # 08:15 UTC is 3:15 AM during standard time (EST). The first step skips the wrong one.
+    - cron: "15 7 * * *"
+    - cron: "15 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: "false"
+      TZ: America/New_York
+    steps:
+      - name: Only in a private, set-up repository, and only at 3 AM (scheduled runs)
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" != "true" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Backup skipped: this repository is not private. The backup would publish your database."
+          elif [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Not set up yet: follow SETUP.md."
+          elif [ "${{ github.event_name }}" = "schedule" ] && [ "$(date +%H)" != "03" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: it is $(date +%H:%M) Eastern time."
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        if: steps.gate.outputs.run == 'true'
+        run: npm ci
+
+      - name: Export the database
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          DAY=$(date +%F)
+          npx wrangler d1 export project-dashboard --remote --output "backups/$DAY.sql" -c workers/app/wrangler.jsonc
+          echo "DAY=$DAY" >> "$GITHUB_ENV"
+
+      - name: Write markdown snapshot
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          npx tsx scripts/export-snapshot.ts "backups/$DAY.sql"
+          echo "Generated nightly by .github/workflows/backup.yml. Do not edit by hand." > snapshot/README.md
+
+      - name: Keep the newest 30 dumps
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          ls backups/*.sql | sort | head -n -30 | xargs -r rm -f
+
+      - name: Commit and push
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          git config user.name "project-dashboard backup"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A backups snapshot
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "Backup $DAY"
+            git push
+          fi

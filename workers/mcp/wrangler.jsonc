@@ -1,0 +1,33 @@
+// MCP Worker: the MCP server at /mcp and the calendar feed at /calendar.ics.
+// /mcp needs an OAuth token (chat apps) or MCP_TOKEN (Claude Code, scripts). The feed needs ICS_TOKEN.
+// Only the /authorize sign-in page is behind Cloudflare Access.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "project-dashboard-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "project-dashboard",
+      "database_id": "YOUR_D1_DATABASE_ID",
+      "migrations_dir": "../../migrations"
+    }
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    // Troubleshooting aid: set to "1" and deploy to record each request (never tokens) in oauth_kv
+    // under debug:* for one day. Leave at "0" normally.
+    "DEBUG_LOG": "0",
+    "APP_URL": "https://project-dashboard.YOUR-SUBDOMAIN.workers.dev",
+    "PUBLIC_URL": "https://project-dashboard-mcp.YOUR-SUBDOMAIN.workers.dev",
+    // Cloudflare Access protects only the /authorize path (Access app "Project dashboard MCP sign-in").
+    // OWNER_EMAIL is a Worker secret. If any of these is missing, /authorize refuses.
+    "ACCESS_TEAM_DOMAIN": "YOUR-TEAM.cloudflareaccess.com",
+    "ACCESS_AUD": "YOUR_MCP_ACCESS_AUD"
+  },
+  "observability": { "enabled": true }
+}
