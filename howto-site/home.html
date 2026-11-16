@@ -1,11 +1,11 @@
 <section class="hero">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="label">Brian Renshaw · How I keep track of things</p>
-      <h1>I talk to a chatbot. <span class="lit">My server</span> keeps the record.</h1>
-      <p class="lede">I built two private dashboards without writing any code: one for work, one for
-      my health. Any chat app can read and write them, and a website shows me where things
-      stand.</p>
+      <h1>How I keep track of my work and my health</h1>
+      <p class="lede">My tasks and my health records live in a database on my own Cloudflare
+      account. I add to it and ask it questions from a chat app, usually Claude, and I check on
+      things at a private website. Claude Code wrote all the code. I described what I wanted and
+      told it what was wrong.</p>
       <div class="actions">
         <a class="btn btn-pop" href="/how-to/build">Build your own</a>
 <!--repo-->
@@ -30,23 +30,21 @@
 
 <section class="band">
   <div class="wrap two-col">
-    <p class="label">Why it's built this way</p>
+    <h2 class="side">Why not just use a chat app?</h2>
     <div class="prose">
-      <p class="big">Chat is the fastest way to put things in. It's a terrible place to keep them.</p>
-      <p>I can say “Sam owes me the numbers by Thursday” faster than I can fill in any form. But
-      chats scroll away, every app remembers things its own way, and the one time I tried a
-      different app I started from nothing.</p>
-      <p>So the record lives in a database I own, on my own Cloudflare account. The chat app is
-      only the way in. Claude, ChatGPT and GrokBot all connect to the same server, get the same
-      instructions and see the same data. If I switch apps tomorrow, I lose nothing.</p>
+      <p>A chat app is a quick way to add things. I can say “Sam owes me the numbers by Thursday”
+      faster than I can fill in a form. It's a poor place to keep them, though. Chats scroll away,
+      each app remembers things its own way, and when I tried a different app I started over.</p>
+      <p>So the record lives in a database I own. The chat app is how I get to it. Claude, ChatGPT
+      and GrokBot all connect to the same server and see the same data, so I can switch apps
+      without losing anything.</p>
     </div>
   </div>
 </section>
 
 <section class="band band-alt" id="how">
   <div class="wrap">
-    <p class="label">How the pieces fit</p>
-    <h2>Four parts, one account.</h2>
+    <h2>How it's set up</h2>
     <figure class="diagram">
       <svg class="d-wide" viewBox="0 0 720 230" role="img" aria-label="You talk to any chatbot, which reaches your server through MCP. The server reads and writes your database. Your website shows the same database.">
         <defs>
@@ -121,32 +119,38 @@
 
 <section class="band" id="templates">
   <div class="wrap">
-    <p class="label">What I've built so far</p>
-    <h2>Two dashboards. Same bones.</h2>
-    <div class="cards">
-      <article class="card">
-        <p class="card-tag">Work</p>
-        <h3>The project dashboard</h3>
-        <p>Tasks, who I'm waiting on, what to bring to each 1:1, and a week of time blocks I plan
-        on a board. When I ask, my chatbot reads my sent mail and meeting notes and suggests tasks.
-        I say yes or no.</p>
+    <h2>What I've built so far</h2>
+    <div class="shows">
+      <article class="show">
+        <div class="show-text">
+          <p class="card-tag">Work</p>
+          <h3>The project dashboard</h3>
+          <p>Tasks, who I'm waiting on, what to bring to each 1:1, and a week of time blocks I plan on
+          a board. When I ask, my chatbot reads my sent mail and meeting notes and suggests tasks. I
+          say yes or no.</p>
 <!--repo-->
-        <a class="card-link" href="https://github.com/brianrenshaw/robot-dashboard-template" rel="noopener">Template on GitHub ↗</a>
+          <a class="card-link" href="https://github.com/brianrenshaw/robot-dashboard-template" rel="noopener">Template on GitHub ↗</a>
 <!--/repo-->
+        </div>
+        <figure class="shot"><img src="/how-to/img/work.webp" width="1400" height="980" loading="lazy" alt="The project dashboard: a week of meetings and time blocks, and a board of tasks under it."><figcaption>Made-up names and tasks.</figcaption></figure>
       </article>
-      <article class="card">
-        <p class="card-tag">Health</p>
-        <h3>The health dashboard</h3>
-        <p>Numbers from Apple Health on my phone, food against my targets, my lifting program and
-        what to lift today, and the week's weather for picking bike days. Its coach answers from
-        sources I chose, with the page or the link. Claude and ChatGPT can read Apple Health;
-        GrokBot can't yet, so I sync from one of the other two.</p>
+      <article class="show flip">
+        <div class="show-text">
+          <p class="card-tag">Health</p>
+          <h3>The health dashboard</h3>
+          <p>Numbers from Apple Health on my phone, food against my targets, my lifting program and
+          what to lift today, and the week's weather for picking bike days. Its coach answers from
+          sources I chose, with the page or the link. Claude and ChatGPT can read Apple Health;
+          GrokBot can't yet, so I sync from one of the other two.</p>
 <!--repo-->
-        <a class="card-link" href="https://github.com/brianrenshaw/robot-health-template" rel="noopener">Template on GitHub ↗</a>
+          <a class="card-link" href="https://github.com/brianrenshaw/robot-health-template" rel="noopener">Template on GitHub ↗</a>
 <!--/repo-->
+        </div>
+        <figure class="shot"><img src="/how-to/img/health.webp" width="1400" height="982" loading="lazy" alt="The health dashboard: the coach's review, the next lifting session and the week ahead with the forecast."><figcaption>Made-up numbers.</figcaption></figure>
       </article>
     </div>
-    <p class="note">The two share nothing: separate code, databases, sign-ins and backups.</p>
+    <p class="note">They're built the same way but kept completely separate: their own code,
+    database, sign-in and backups.</p>
   </div>
 </section>
 
@@ -187,10 +191,10 @@
 <section class="cta">
   <div class="wrap cta-grid">
     <div>
-      <h2>Build your own.</h2>
-      <p>You don't write code. You need an AI coding tool, a free Cloudflare account, and a clear idea
-      of what you want to keep track of. The guide goes step by step, with what to say to your AI at
-      each one.</p>
+      <h2>Build your own</h2>
+      <p>You don't need to write code. You need an AI coding tool, a free Cloudflare account, and a
+      clear idea of what you want to track. The guide goes step by step and gives you what to say to
+      your AI at each one.</p>
     </div>
     <div class="cta-actions">
       <a class="btn btn-ink" href="/how-to/build">Read the guide →</a>
