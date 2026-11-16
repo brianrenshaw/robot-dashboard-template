@@ -14,7 +14,7 @@ yours.
 
 ## The idea
 
-You work by talking to a chatbot: Claude, ChatGPT, Grok, whichever you like. The chatbot reads
+You work by talking to a chatbot: Claude, ChatGPT, GrokBot, whichever you like. The chatbot reads
 and writes **one database that you own**, through a small server you also own. A **website** on
 top of the same database is where you look at how things stand.
 
@@ -22,7 +22,7 @@ top of the same database is where you look at how things stand.
 You
  │  talk
  ▼
-Any chatbot (Claude, ChatGPT, Grok, ...)
+Any chatbot (Claude, ChatGPT, GrokBot, ...)
  │  MCP
  ▼
 Your server (the tools and the rules)
@@ -278,8 +278,8 @@ Two things to know:
 
 - **Chat apps remember a server's tools and instructions.** After you change them, start a new
   chat.
-- **Each app has different abilities.** One can read your calendar or Apple Health and another
-  cannot. The server's instructions should say what to do when an app cannot do something.
+- **Each app has different abilities.** Claude and ChatGPT can read Apple Health on an iPhone;
+  GrokBot cannot yet. One app can read your calendar and another cannot. The server's instructions should say what to do when an app cannot do something.
 
 **Done when** you can do a full day's work through the chat and see it on the website.
 

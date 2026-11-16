@@ -4,9 +4,9 @@
    conversation; hover and press answer in under 100ms. Reduced motion keeps the timing as a fade.
    The colours are all tokens in :root (and again for dark). */
 :root {
-  /* Graphite #222526, Mist Blue #CCDCEF, Coral Pink #FF6574. Paper is a whisper of the mist;
-     graphite is the text and the one deep band; coral is the pop, used for buttons, the chat's
-     own side, "My server" and the $0. Small link text uses a deeper coral so it stays readable. */
+  /* Graphite #222526, Mist Blue #CCDCEF, Steel Blue #2F5F8F. Paper is a whisper of the mist;
+     graphite is the text and the one deep band; steel blue is the accent, used for buttons, the
+     chat's own side, "My server" and links. On the graphite band the $0 uses a lighter steel. */
   --paper: #f4f7fb;
   --surface: #ffffff;
   --surface-2: #dde7f4;
@@ -15,11 +15,11 @@
   --faint: #8a9096;
   --line: #d6e0ec;
   --dot: rgba(34, 37, 38, 0.07);
-  --accent: #ff6574;
-  --accent-hover: #ff7b88;
-  --accent-ink: #222526;
+  --accent: #2f5f8f;
+  --accent-hover: #3a6ea3;
+  --accent-ink: #ffffff;
   --accent-soft: #e6eef8;
-  --link: #c93b4a;
+  --link: #2f5f8f;
   --code-bg: #e6eef8;
   --shadow: 0 1px 2px rgba(34, 37, 38, 0.05), 0 12px 32px -18px rgba(34, 37, 38, 0.22);
   --deep: #222526;
@@ -27,8 +27,9 @@
   --deep-muted: color-mix(in srgb, var(--deep-fg) 70%, var(--deep));
   --deep-line: color-mix(in srgb, var(--deep-fg) 16%, var(--deep));
   --deep-cell: color-mix(in srgb, var(--deep-fg) 6%, var(--deep));
-  --pop2: #ff6574;
-  --lit: #e8505f;
+  --pop2: #2f5f8f;
+  --lit: #2f5f8f;
+  --on-deep: #8fb3da;
   --ease: cubic-bezier(0.32, 0.72, 0, 1);
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -44,16 +45,18 @@
     --faint: #737c86;
     --line: #2d3238;
     --dot: rgba(204, 220, 239, 0.06);
-    --accent: #ff6574;
-    --accent-hover: #ff7b88;
-    --accent-ink: #1a1c1d;
+    --accent: #7ea9d6;
+    --accent-hover: #93b8df;
+    --accent-ink: #0f1a26;
     --accent-soft: rgba(204, 220, 239, 0.08);
-    --link: #ff8a95;
+    --link: #93b8df;
     --code-bg: #2a2f35;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 36px -20px rgba(0, 0, 0, 0.7);
     --deep: #0f1112;
     --deep-fg: #ccdcef;
-    --lit: #ff6574;
+    --lit: #93b8df;
+    --pop2: #7ea9d6;
+    --on-deep: #93b8df;
     color-scheme: dark;
   }
 }
@@ -177,7 +180,7 @@ h3 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; margin: 0 0 8px
 .band-ink .cell { background: var(--deep-cell); }
 .band-ink .cell p, .band-ink .cost-lede, .band-ink .cost-more p, .band-ink .price span { color: var(--deep-muted); }
 .band-ink .cell .cell-k, .band-ink h3, .band-ink .cell .stat { color: var(--deep-fg); }
-.band-ink .price { color: var(--pop2); }
+.band-ink .price { color: var(--on-deep); }
 .band-ink a { color: var(--deep-fg); }
 .band-ink code { background: var(--deep-line); color: var(--deep-fg); }
 .band-ink .fine { color: var(--deep-muted); opacity: 0.8; }
