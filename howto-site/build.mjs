@@ -130,6 +130,8 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\\/+$/, "") || "/";
     if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405 });
+    // The front page is the overview, for now. A 302, so a real home page can take its place later.
+    if (path === "/") return Response.redirect(new URL("/how-to", url).toString(), 302);
     const body = PAGES[path];
     if (body) return new Response(request.method === "HEAD" ? null : body, { headers: HEADERS });
     return new Response(PAGES["/how-to"].replace("<article>", '<article><p class="missing">That page does not exist. Here is the overview.</p>'), { status: 404, headers: HEADERS });
