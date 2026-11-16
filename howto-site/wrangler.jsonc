@@ -1,0 +1,14 @@
+// The page at briandrenshaw.com/how-to (and /how-to/build). Only those addresses come here; the
+// rest of briandrenshaw.com is untouched. The account is taken from CLOUDFLARE_ACCOUNT_ID at
+// deploy time, so it is not written in this public file.
+{
+  "name": "briandrenshaw-howto",
+  "main": "dist/worker.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "briandrenshaw.com/how-to*", "zone_name": "briandrenshaw.com" },
+    { "pattern": "www.briandrenshaw.com/how-to*", "zone_name": "briandrenshaw.com" }
+  ]
+}

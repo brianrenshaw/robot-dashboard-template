@@ -1,7 +1,7 @@
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/node_modules/**", "**/dist/**", "workers/app/public/**", "backups/**", "snapshot/**", "**/.wrangler/**"] },
+  { ignores: ["**/node_modules/**", "**/dist/**", "workers/app/public/**", "backups/**", "snapshot/**", "**/.wrangler/**", "howto-site/**"] },
   ...tseslint.configs.recommended,
   {
     rules: {

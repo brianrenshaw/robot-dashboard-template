@@ -1,0 +1,14 @@
+{
+  "name": "howto-site",
+  "private": true,
+  "type": "module",
+  "description": "The page at briandrenshaw.com/how-to that introduces this repository. Not part of the starter.",
+  "scripts": {
+    "build": "node build.mjs",
+    "deploy": "node build.mjs && wrangler deploy"
+  },
+  "devDependencies": {
+    "marked": "15.0.12",
+    "wrangler": "^4.161.0"
+  }
+}

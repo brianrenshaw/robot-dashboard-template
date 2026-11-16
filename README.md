@@ -90,6 +90,11 @@ records each decision with the reason. The short list:
 
 ## Make your own
 
+**Want to build your own for something else** (your health, your reading, your house)? Read
+[GUIDE.md](GUIDE.md): the steps, in order, with what to tell your AI coding tool at each one.
+To run this exact project as yours, follow the steps below.
+
+
 You need a GitHub account, a Cloudflare account (the free plan is enough to start), and an AI
 coding tool such as Claude Code. You do not need to know how to code.
 
