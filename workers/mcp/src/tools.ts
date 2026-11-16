@@ -14,7 +14,8 @@ import {
   requirePerson, requireProject, saveDigest, search, undoAudit,
   updatePerson, updateProject, updateTask, whatsChanged, getTask, taskBySource,
   addDays, listCalendarEvents, listGoogleAccounts, listTags, listTasks,
-  type TaskFilterInput,
+  dayFacts, getDailyLog, listDailyLogs, logNotes, saveDailyLog, saveMeetingNote, meetingPeople, addTimeBlock, deleteTimeBlock, listTimeBlocks,
+  type DailyLog, type TaskFilterInput,
   type CalendarEvent, type Ctx, type EntryView, type ProjectCard, type Task, type TaskPerson,
 } from "@pd/core";
 
@@ -112,6 +113,8 @@ function taskBrief(t: Task & { people?: TaskPerson[]; person?: { name: string } 
 function eventBrief(e: CalendarEvent, names: Map<string, string>, timezone: string) {
   const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
   return {
+    // Pass this as meeting_id to add_task or add_entry to tie a task or a note to this meeting.
+    id: e.id,
     day: e.day,
     // The owner's local time, ready to quote.
     time: e.all_day ? "all day" : e.ends_at ? `${clock(e.starts_at)} to ${clock(e.ends_at)}` : clock(e.starts_at),
@@ -122,6 +125,18 @@ function eventBrief(e: CalendarEvent, names: Map<string, string>, timezone: stri
     area: e.area,
     one_on_one_with: e.person_id ? names.get(e.person_id) ?? undefined : undefined,
     url: e.url ?? undefined,
+  };
+}
+
+/** A day of the daily log: the write-up, then what he said he did. */
+function logBrief(l: DailyLog) {
+  const said = logNotes(l);
+  return {
+    day: l.day,
+    weekday: new Date(`${l.day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long" }),
+    written_up: l.body || undefined,
+    his_notes: said.length ? said : undefined,
+    updated_at: l.updated_at,
   };
 }
 
@@ -146,7 +161,12 @@ How to work with it:
 - When he asks about his work, tasks, people, projects or schedule, read it from here first. Do not answer from memory or from earlier in the chat: call the tool again.
 - "What should I work on", "plan my day", "plan my week": what_to_work_on. One specific thing: search. A filtered list of tasks: list_tasks. A person, or preparing for a meeting with them: get_person.
 - Before adding anything, search for it. If it is already here, update it instead of adding a second copy.
-- Adding a task: the title is one short line starting with a verb; detail goes in notes. Tag EVERY person the task involves (people): it then shows on each of their pages. Mark waiting_on for anyone who has to act before he can. Set due_date whenever he gives any timing: his dashboard shows only tasks that have a due date. Use hide_until for "not until ...".
+- Adding a task: the title is one short line starting with a verb; detail goes in notes. Tag EVERY person the task involves (people): it then shows on each of their pages. Mark waiting_on for anyone who has to act before he can. Set due_date whenever he gives any timing. Use hide_until for "not until ...".
+- Three things he loses track of, and how to record each. These are not categories and have no names: never say "promise", "commitment" or a label for them to him; just add the task and give the one-line receipt.
+  - He told someone he would do something ("I told Ned I'd send him the list"): a task that is his, with that person in people and NO waiting_on.
+  - He asked someone for something ("I asked Kai for the script", "follow up with Sam on the contract"): a task with waiting_on that person, worded as the thing he is waiting for ("launch video script"). His dashboard counts the days. When the person delivers, complete_task. "What do I need to follow up on" is list_tasks who: theirs.
+  - He has something to be ready for ("the pricing meeting on December 1"): a task with due_date. Several pieces of work toward one date are a project with that due_date and a task for each piece.
+  A task shows on his next meeting with its person by itself; do not also put it on the 1:1 list unless he asks.
 - The 1:1 list: each person has a short list for his next 1:1 with them. Nothing goes on it by itself. Put a task there only when he asks ("put this on my 1:1 with Peter", "add that to my one-on-one with Kai"): update_task add_to_one_on_one, or one_on_one_with when adding. "What's on my 1:1 with Peter" is get_person. After the meeting, take off what was covered (remove_from_one_on_one) or mark it done if it is finished.
 - Never guess a person or a project. If a name fits more than one, the tool says so: ask him which. If he uses a name that is not on file for someone ("Nena" for Nina Wade), ask once, then save it with update_person (aliases) so it matches next time.
 - Never suggest or list a task he has hidden until a later day, unless he asks for hidden ones.
@@ -154,13 +174,48 @@ How to work with it:
 - A task that is a duplicate, a mistake or no longer applies: delete_task. complete_task is only for things that were actually done.
 - A mistake of yours can be reversed with undo_last.
 
+How he plans his time: time blocking, in the manner of Cal Newport. Plan this way whenever he asks to plan his day or week, or asks what to do with an open stretch. Do not name the method or lecture him about it; just plan this way.
+- Every hour of his workday gets a job. Meetings are fixed; the open time between them is where work happens, in blocks he chooses on purpose.
+- Two scales. The week: on Monday (he has a "Weekly plan" block), look at the week's calendar and his open tasks and decide what deserves protected time this week, then place blocks for it, the bigger things first. The day: the evening before or first thing, give each open stretch of that day a job.
+- To plan: call list_calendar for the days in question and what_to_work_on (horizon week or today). Find the open stretches, leaving about 10 minutes either side of a meeting. Then propose:
+  - Thinking work (a decision, a document, a model, a proposal) in the longest stretch, early in the day: 60 to 90 minutes. A big piece of work gets several blocks across the week, not one heroic one.
+  - Small things (a quick confirmation, a reply, a nudge to someone who owes him something) batched into one block of 30 to 45 minutes, never scattered across the day.
+  - One block for email and requests, not all day.
+  - Before a 1:1, a short prep block only if that person's list needs real work first.
+  - A short last block to close the day: check things off, move what did not happen.
+  - Slack. Do not fill every minute with heavy work; a day of back-to-back blocks fails by 10 AM.
+- Weigh things by what they need, not by how much is written about them. A decision with a deadline (a contract, a salary) can matter more than a project with four tasks.
+- Show the plan as a short schedule (time, then what) and wait for his yes. He will move things.
+- Putting blocks on his week: only after his yes, with update_task block_time, one block per task (a batch of small things is one block on each, back to back, or one block on the main one). They show on his dashboard's week beside his meetings; list_calendar returns them with his meetings, so check it first and never double-book. To move one, clear_blocks and give the new time. Blocks live on his dashboard. Never put them on his Google Calendar on your own. When he asks ("sync my blocks to my calendar", "put this week on my calendar"), copy them with your own calendar connection: call list_calendar for the range, and for each block create an event titled exactly with the task's title, at the block's time, in his work calendar unless he says otherwise. Skip a block whose event is already there (same title, same day and time). If an event with that title exists at another time in the range, a block has moved: move that event rather than adding one. Never change or delete any other event. Answer in one line: how many you added, moved and skipped. His dashboard shows a copied block once.
+- When the day breaks (a meeting runs long, something urgent lands), do not abandon the plan: re-plan the rest of the day from now.
+- Things he is waiting on from others are not blocked; their nudges go in a small-things block.
+- A meeting can carry tasks and one note. "Add a note to my 2 o'clock", "note from my 1:1 with Ned: ...": find the meeting with list_calendar and call add_entry with meeting_id and the note as body; it is added to that meeting's note. "Add a task to my meeting with Aaron": add_task with meeting_id, and the people in the meeting. The note shows on the meeting, on its people's pages and in that day's log.
+- His dashboard also has a board with rows he moves things between: New (not placed yet; everything starts there), To do, Waiting to hear back, Back burner, To figure out (he may rename them). Move a task with update_task board_row when he says so ("put that on the back burner"). Do not sort his tasks into rows on your own.
+
 When he says "go through my email and update my dashboard" (you read mail with your own email connection; this server never reads or sends mail):
-1. Read the recent threads that involve him.
-2. For each one, search here for a matching task or person.
-3. Show him ONE short list of proposed changes: add this (with its people and due date), mark that done, this one is now waiting on someone else. Wait for his yes. He may strike items.
+1. Read the recent threads that involve him, and read the mail he SENT with particular care: his promises and his requests are in what he wrote. Unless he gives a range, cover the days since the newest task here that came from an email (list_tasks has_email), or the last seven days if there is none.
+2. Look for exactly these, and leave the rest of the mail alone:
+   - Something he said he would do ("I'll send that over", "let me check and get back to you"): a task that is his, with the person he told in people.
+   - Something he asked someone for and has not received ("can you send me...", "please confirm..."): a task with waiting_on that person. If a later reply in the thread delivers it, it is not a task; if it settles a task already here, that task is done.
+   - A date he has to be ready for (a meeting to prepare for, a deadline someone gave him): a task with that due_date.
+   For each one, search here for a matching task or person.
+3. Show him ONE short plain list of proposed changes, with no groups or headings. Each line is the task as it would be added, then who it is with or who he is waiting on, and its date; a task to mark done says so. Wait for his yes. He may strike items.
 4. Then write. Pass source_ref "gmail:<thread id>" on every task that comes from a thread, so doing this again never adds it twice.
 5. Finish with one line saying how many things changed.
-Do not send, draft or archive mail as part of this unless he asks.`;
+Do not send, draft or archive mail as part of this unless he asks.
+
+His daily log is a short, casual record of what he worked on each day. He does not keep it himself; you do.
+- He can add to it at any time of day, not only at the end: "log that I finished the budget draft", "add to my daily log that I updated Dr. Ross on the MBA pathway". Use save_daily_log with add: one short line in his words, saying what he did and who with. If it happened on an earlier day ("on Friday I..."), pass that day.
+- If he gives you more than a line (what was said, what was decided, a pasted conversation), keep the log line short and also file the detail as a note with that person: add_entry, kind meeting (call for a phone call, note otherwise), people [them], occurred_at that day, a short title, and a body of a few short lines in your words. It then shows on their page and in that day's log. If the person is not on his dashboard, file the note without people and say so; add them only if he asks. Answer in one line for both.
+- "What did I do yesterday", "what did I work on last week": get_daily_log.
+- "Log my day", "wrap up my day", or his end-of-day check-in:
+  1. get_daily_log for today. It returns what the dashboard saw (his meetings and who they were with, tasks added, tasks finished, notes filed), anything he already jotted down, and the log if it was already written.
+  2. With your own connections, look at the mail he SENT today and at his meeting notes (Granola) for today's meetings. If you have neither connection, say so in one line and carry on with what the dashboard has.
+  3. Write the day up and save it with save_daily_log body. Short and plain, markdown, readable in under a minute: one sentence on what the day was mostly about, then "## Meetings" (time, who it was with, one line on what it was about when notes exist), "## Email" (one line for each thread he wrote in: who, and what he said or decided; skip calendar replies and one-word answers), "## Tasks" (finished, then added). Leave out a section with nothing in it. Do not repeat his own notes in it: they show beneath it as he said them.
+  4. For a 1:1 that has meeting notes, also file a short meeting note with that person: add_entry, kind meeting, people [them], source_ref "granola:<meeting id>" so it is never filed twice.
+  5. Show him what you logged in a few lines and ask "Anything else you worked on today?" Add what he answers with save_daily_log add.
+  6. Then, from the mail he sent today and today's meeting notes, list anything that belongs on his dashboard and is not there yet: what he said he would do, what he asked someone for, a date to be ready for, and any task here that today's mail shows is done. Search first so nothing is proposed twice. Show it as one short list and ask "Add these?". Write only what he says yes to, as in the email routine above (source_ref "gmail:<thread id>" for anything from a thread). If there is nothing, say nothing.
+  Writing the log itself never adds, finishes or changes a task. Step 6 is the only place tasks change, and only on his yes.`;
 
 export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
   const server = new McpServer({ name: "project-dashboard", version: "1.0.0" }, { instructions: INSTRUCTIONS });
@@ -328,9 +383,17 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
         url: z.string().optional(),
         source_ref: z.string().optional(),
         occurred_at: z.string().optional(),
+        meeting_id: z
+          .string()
+          .optional()
+          .describe("A meeting's id from list_calendar ('add a note to my 2 o'clock', 'note from my 1:1 with Ned'). The body is added to that meeting's note, which is filed with its people and time; title, people and project are then not needed."),
       }),
     },
     safe(async (a) => {
+      if (a.meeting_id) {
+        const note = await saveMeetingNote(ctx, a.meeting_id, { add: (a.body ?? a.title).trim() });
+        return { meeting_note: true, entry: entryBrief(note, 600, await mailAccount()), receipt: `Added to the note for ${note.title}.`, url: link("/") };
+      }
       const project = a.project ? (await requireProject(db, a.project)).id : null;
       const extra = [];
       for (const r of a.extra_projects ?? []) extra.push((await requireProject(db, r)).id);
@@ -407,7 +470,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "add_task",
     {
       description:
-        "Put a task on the owner's dashboard. This is the main way things get there: when he says 'add this to my dashboard', 'remind me to...', 'I need to...', or 'Sam owes me...', use this. Only the title is needed. People work like tags: put every person the task involves in `people` and it shows on each of their pages. ALWAYS do that: a task that mentions Nina belongs on Nina's page. Add `waiting_on` for anyone who has to do it before he can move ('Sam owes me the numbers', 'Jordan to email Dylan' is waiting_on Jordan with Dylan in people). Use `one_on_one_with` ONLY when he says to put it on his 1:1 list with someone ('add this to my 1:1 with Peter', 'bring this up with Kai at our one-on-one'): nothing goes on a 1:1 list unless he asks. Leave all three out only when the task is simply his own. (As a fallback, a task added with no people whose title names some of his people is tagged with them automatically.) Set due_date whenever he gives any timing ('by Friday', 'next week', 'before the board meeting on the 3rd'): his dashboard shows only tasks that have a due date, so a task without one stays out of sight until he asks what to work on. Add due_date for a deadline and tags to make it findable (call list_tags first and reuse his tags). Most tasks have NO project: only pass project when he names one or the task is plainly part of an existing project with several tasks. area is the desk (work, personal or side_business) for a task with no project; it defaults to work. Put any detail he gave in notes rather than in a long title.",
+        "Put a task on the owner's dashboard. This is the main way things get there: when he says 'add this to my dashboard', 'remind me to...', 'I need to...', or 'Sam owes me...', use this. Only the title is needed. People work like tags: put every person the task involves in `people` and it shows on each of their pages. ALWAYS do that: a task that mentions Nina belongs on Nina's page. Add `waiting_on` for anyone who has to do it before he can move ('Sam owes me the numbers', 'Jordan to email Dylan' is waiting_on Jordan with Dylan in people). Use `one_on_one_with` ONLY when he says to put it on his 1:1 list with someone ('add this to my 1:1 with Peter', 'bring this up with Kai at our one-on-one'): nothing goes on a 1:1 list unless he asks. Leave all three out only when the task is simply his own. (As a fallback, a task added with no people whose title names some of his people is tagged with them automatically.) Set due_date whenever he gives any timing ('by Friday', 'next week', 'before the board meeting on the 3rd'): his dashboard lists dated tasks soonest first. Something he told a person he would do ('I told Ned I'd send the list') is his task with that person in people and no waiting_on. Something he asked a person for is waiting_on them, and his dashboard counts the days. Add tags to make it findable (call list_tags first and reuse his tags). Most tasks have NO project: only pass project when he names one or the task is plainly part of an existing project with several tasks. area is the desk (work, personal or side_business) for a task with no project; it defaults to work. Put any detail he gave in notes rather than in a long title.",
       inputSchema: z.object({
         title: z.string().describe("One short line, starting with a verb"),
         people: who.optional().describe("Everyone the task involves: a person name or id, or a list of them. It shows on each of their pages."),
@@ -424,6 +487,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
         area: z.enum(AREAS).optional(),
         notes: z.string().optional(),
         assigned_to: z.string().optional().describe("Older name for waiting_on"),
+        meeting_id: z.string().optional().describe("A meeting's id from list_calendar, when he adds a task for a meeting ('add a task to my meeting with Aaron'). It then shows in that meeting on his dashboard. Also tag the people in it."),
       }),
     },
     safe(async (a) => {
@@ -434,7 +498,9 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
       const people = [...new Set(tagged)].map((id) => ({ person_id: id, waiting: waiting.includes(id), one_on_one: oneOnOne.includes(id) }));
       // The same thing sent twice (same source_ref) is not added twice; say so instead of "Added".
       const existed = a.source_ref ? !!(await taskBySource(db, a.source_ref)) : false;
-      const t = await addTask(ctx, { project_id: p?.id ?? null, title: a.title, due_date: a.due_date ?? null, people: people.length ? people : undefined, tags: a.tags, area: a.area ?? null, notes: a.notes ?? "", source_ref: a.source_ref ?? null, hide_until: a.hide_until ?? null });
+      const t = await addTask(ctx, { project_id: p?.id ?? null, title: a.title, due_date: a.due_date ?? null, people: people.length ? people : undefined, tags: a.tags, area: a.area ?? null, notes: a.notes ?? "", source_ref: a.source_ref ?? null, hide_until: a.hide_until ?? null, meeting_ref: a.meeting_id ?? null,
+        // For a meeting with no people named, the meeting's people, not a guess from the wording.
+        ...(a.meeting_id && !people.length ? { people: (await meetingPeople(db, a.meeting_id)).map((id) => ({ person_id: id })) } : {}) });
       // Read it back whole: the people may have been picked up from the title.
       const brief = taskBrief((await getTaskItem(db, t.id)) ?? t);
       return { created: !existed, already_there: existed || undefined, task: brief, receipt: taskReceipt(existed ? "Already on the dashboard:" : "Added", brief), url: taskLink(t) };
@@ -445,7 +511,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "update_task",
     {
       description:
-        "Change a task: its title, notes, status (todo, doing, done), due date, the people on it, its tags (the full new list) or its project (null takes it off its project). People: add_people tags more people on it and remove_people takes them off; neither touches anyone else. waiting_on sets exactly who he is waiting on for it (they are tagged if they were not; null means no one), and everyone else stays tagged. The 1:1 list: add_to_one_on_one puts it on the list for his next 1:1 with those people ('put the Maya salary question on my 1:1 with Peter'), remove_from_one_on_one takes it off ('we covered that', 'clear my 1:1 list with Peter' is this for each task on it). Get task ids from list_tasks, search or get_person.",
+        "Change a task: its title, notes, status (todo, doing, done), due date, the people on it, its tags (the full new list) or its project (null takes it off its project). People: add_people tags more people on it and remove_people takes them off; neither touches anyone else. waiting_on sets exactly who he is waiting on for it (they are tagged if they were not; null means no one), and everyone else stays tagged. The 1:1 list: add_to_one_on_one puts it on the list for his next 1:1 with those people ('put the Maya salary question on my 1:1 with Peter'), remove_from_one_on_one takes it off ('we covered that', 'clear my 1:1 list with Peter' is this for each task on it). board_row moves it on his planning board ('move the NGU agreement to back burner'). block_time sets aside time for it on his dashboard's week ('give the Riley decision 45 minutes Tuesday at 9'); clear_blocks takes its blocks off (to move a block, clear it and give the new time). Get task ids from list_tasks, search or get_person.",
       inputSchema: z.object({
         task_id: z.string(),
         title: z.string().optional(),
@@ -464,9 +530,22 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
         hide_until: ymd.nullable().optional().describe("Keep it out of his lists until this day, or null to show it again"),
         project: z.string().nullable().optional().describe("Project ID, slug or title, or null for no project"),
         assigned_to: z.string().nullable().optional().describe("Older name for waiting_on"),
+        board_row: z
+          .enum(["new", "todo", "waiting", "back", "figure"])
+          .optional()
+          .describe("The row of his planning board: todo, waiting (to hear back), back (back burner), figure (to figure out), or new (not placed yet). He may have renamed them; his words for them are in the result's board_names."),
+        block_time: z
+          .object({
+            day: ymd,
+            start: z.string().regex(/^\d{1,2}:\d{2}$/, "Use HH:MM, 24-hour, his time zone").describe("Start, HH:MM in 24-hour time, his time zone"),
+            minutes: z.number().int().min(5).max(720),
+          })
+          .optional()
+          .describe("Set aside time for it on his dashboard's week. Only after he has said yes to the time."),
+        clear_blocks: z.boolean().optional().describe("Take this task's blocks from today on off his week"),
       }),
     },
-    safe(async ({ task_id, assigned_to, waiting_on, owed_to, discuss_with, mentions, add_people, remove_people, add_to_one_on_one, remove_from_one_on_one, project, ...rest }) => {
+    safe(async ({ task_id, assigned_to, board_row, block_time, clear_blocks, waiting_on, owed_to, discuss_with, mentions, add_people, remove_people, add_to_one_on_one, remove_from_one_on_one, project, ...rest }) => {
       const patch: Record<string, unknown> = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined));
       const waiting = waiting_on !== undefined ? waiting_on : assigned_to;
       const touched = [waiting, owed_to, discuss_with, mentions, add_people, remove_people, add_to_one_on_one, remove_from_one_on_one].some((x) => x !== undefined);
@@ -487,9 +566,32 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
         patch.people = [...on.values()];
       }
       if (project !== undefined) patch.project_id = project ? (await requireProject(db, project)).id : null;
-      const t = await updateTask(ctx, task_id, patch);
+      if (board_row !== undefined) patch.board = board_row === "new" ? null : board_row;
+      const t = Object.keys(patch).length ? await updateTask(ctx, task_id, patch) : await getTask(ctx, task_id);
+      if (!t) throw new NotFoundError(`No task with id ${task_id}`);
+      const settings = await getSettings(db);
+      const extra: string[] = [];
+      if (clear_blocks) {
+        const today = todayInTz(settings.timezone);
+        const mine = (await listTimeBlocks(db, today, addDays(today, 60))).filter((b) => b.task_id === t.id);
+        for (const b of mine) await deleteTimeBlock(ctx, b.id);
+        if (mine.length) extra.push(`took ${mine.length === 1 ? "its block" : `its ${mine.length} blocks`} off the week`);
+      }
+      if (block_time) {
+        const [h, m] = block_time.start.split(":").map(Number);
+        await addTimeBlock(ctx, { task_id: t.id, day: block_time.day, start_min: h! * 60 + m!, minutes: block_time.minutes });
+        extra.push(`blocked ${block_time.day} at ${block_time.start} for ${block_time.minutes} minutes`);
+      }
+      if (board_row !== undefined) extra.push(`moved to ${board_row === "new" ? "New" : settings.board_names[board_row]}`);
       const brief = taskBrief((await getTaskItem(db, t.id)) ?? t);
-      return { updated: true, task: brief, receipt: taskReceipt(t.status === "done" ? "Marked done:" : "Updated", brief), url: taskLink(t) };
+      const receipt = taskReceipt(t.status === "done" ? "Marked done:" : "Updated", brief);
+      return {
+        updated: true,
+        task: brief,
+        receipt: extra.length ? `${receipt.replace(/\.$/, "")}; ${extra.join("; ")}.` : receipt,
+        url: block_time || clear_blocks || board_row !== undefined ? link("/") : taskLink(t),
+        board_names: board_row !== undefined ? settings.board_names : undefined,
+      };
     }),
   );
 
@@ -637,7 +739,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
   server.registerTool(
     "search",
     {
-      description: "Search everything on the dashboard by words: tasks (open, and ones finished in the last two weeks), projects, people and notes (emails, meetings, decisions). Every word has to appear. Use it to find a specific thing ('the scholarship funds task', 'anything about the MBA pathway') and ALWAYS before adding something that may already be there. For a filtered list of tasks (by person, date, tag) use list_tasks instead.",
+      description: "Search everything on the dashboard by words: tasks (open, and ones finished in the last two weeks), projects, people, notes (emails, meetings, decisions) and the days of his daily log ('when did I last work on the budget'). Every word has to appear. Use it to find a specific thing ('the scholarship funds task', 'anything about the MBA pathway') and ALWAYS before adding something that may already be there. For a filtered list of tasks (by person, date, tag) use list_tasks instead.",
       inputSchema: z.object({ query: z.string() }),
       annotations: { readOnlyHint: true },
     },
@@ -648,6 +750,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
         projects: r.projects.map(projectBrief),
         people: r.people.map((p) => ({ id: p.id, name: p.name, also_called: p.aliases || undefined, role: p.role || undefined })),
         entries: r.entries.map((e) => entryBrief(e, 300)),
+        daily_log: r.logs.length ? r.logs.map(logBrief) : undefined,
       };
     }),
   );
@@ -670,7 +773,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "what_to_work_on",
     {
       description:
-        "Use this whenever the owner asks what he should work on, to plan his day or his week, or what is on his plate ('what should I be working on today', 'plan my week', 'what do I need to do'). His dashboard only shows tasks that have a due date; this is how everything else reaches him. It returns, in the order to present it: late (past its due date), due_today, due_this_week, meetings (with people_you_are_meeting: who each is with, how many things are on his 1:1 list with them and how many he is waiting on from them, so he can raise them), waiting_a_week_or_more (things to nudge someone about), and no_due_date (his own tasks with no deadline). Lead with what is late and what is due today. Offer the no_due_date tasks only as options for open time, a few at a time, never as a to-do list. Tasks he has hidden until a later day are already left out: never suggest them. horizon is 'today' (the default) or 'week'.",
+        "Use this whenever the owner asks what he should work on, to plan his day or his week, or what is on his plate ('what should I be working on today', 'plan my week', 'what do I need to do'). His dashboard shows the meetings ahead and his promises; this is the fuller answer, including his own tasks with no date and no person. It returns, in the order to present it: late (past its due date), due_today, due_this_week, meetings (with people_you_are_meeting: who each is with, how many things are on his 1:1 list with them and how many he is waiting on from them, so he can raise them), waiting_a_week_or_more (things to nudge someone about), and no_due_date (his own tasks with no deadline). Lead with what is late and what is due today. Offer the no_due_date tasks only as options for open time, a few at a time, never as a to-do list. Tasks he has hidden until a later day are already left out: never suggest them. horizon is 'today' (the default) or 'week'.",
       inputSchema: z.object({ horizon: z.enum(["today", "week"]).optional() }),
       annotations: { readOnlyHint: true },
     },
@@ -740,15 +843,77 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     }),
   );
 
+  // ---------- the daily log ----------
+
+  server.registerTool(
+    "get_daily_log",
+    {
+      description:
+        "The owner's daily log: a short record of what he worked on each day. Use it for 'what did I do today', 'what did I do yesterday', 'what did I work on last Tuesday', and as the FIRST step of logging his day. With no arguments it is today. For one day it returns log (written_up: the day as it was written up at its end; his_notes: things he said he did, in his words; null when nothing is logged yet) and seen_by_the_dashboard: that day's meetings with who each was with, the tasks added, the tasks finished and the notes filed. Meetings are only known for today and yesterday; for an older day the saved log is the record. For several days ('what did I work on this week', a weekly review) pass from and to (YYYY-MM-DD, both included): it returns the saved logs for those days, newest first. To find the day something happened ('when did I last work on the MBA pathway'), use search instead: it covers the log.",
+      inputSchema: z.object({
+        day: ymd.optional().describe("One day. Defaults to today."),
+        from: ymd.optional().describe("First day of a range. Use with to, instead of day."),
+        to: ymd.optional().describe("Last day of a range. Defaults to today."),
+      }),
+      annotations: { readOnlyHint: true },
+    },
+    safe(async ({ day, from, to }) => {
+      const { timezone } = await getSettings(db);
+      const today = todayInTz(timezone);
+      if (from) {
+        if (day) throw new InputError("Pass day for one day, or from and to for several, not both.");
+        const logs = await listDailyLogs(db, { from, to: to ?? today, limit: 100 });
+        return { from, to: to ?? today, days_logged: logs.length, logs: logs.map(logBrief), url: link("/log") };
+      }
+      const d = day ?? today;
+      const saved = await getDailyLog(db, d);
+      const facts = await dayFacts(db, d);
+      const names = await personNames();
+      return {
+        day: d,
+        weekday: new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long" }),
+        log: saved ? logBrief(saved) : null,
+        seen_by_the_dashboard: {
+          meetings: facts.meetings_known
+            ? facts.meetings.map((e) => ({ ...eventBrief(e, names, timezone), with: e.with.length ? e.with : undefined, day: undefined, url: undefined }))
+            : "Not kept this far back. The saved log is the record of that day's meetings.",
+          tasks_finished: facts.tasks_finished.map(taskBrief),
+          tasks_added: facts.tasks_added.map(taskBrief),
+          notes_filed: facts.notes_filed.map((e) => ({ kind: e.kind, title: e.title || undefined, people: e.people.length ? e.people.map((p) => p.name) : undefined, project: e.project_title ?? undefined })),
+        },
+        url: link("/log"),
+      };
+    }),
+  );
+
+  server.registerTool(
+    "save_daily_log",
+    {
+      description:
+        "Write to the owner's daily log. It has two uses, and they can be combined. (1) add: something he says he did or worked on, at any time of day ('log that I finished the budget draft', 'add to my log that I updated Dr. Ross on the MBA pathway', or his answer to 'anything else you worked on today?'). One short line for each thing, close to his own words. When he also gives the detail of a conversation, file that detail as a note with the person (add_entry) and keep the log line short. It is added to that day's notes and never replaces anything; the same line is not added twice. (2) body: the day written up at its end (markdown, short): the meetings he had and who with, the mail he sent, the tasks he finished and added. It REPLACES what was written up before for that day, so always call get_daily_log first and keep what still holds; his notes are never touched by it. day defaults to today; pass it to log an earlier day ('add to yesterday's log that...'). A day that has not happened yet is refused. This only records what he did: it does not add or finish tasks.",
+      inputSchema: z.object({
+        add: z.union([z.string(), z.array(z.string())]).optional().describe("One thing he said he did, or a list of them. One short line each."),
+        body: z.string().optional().describe("The day written up, in markdown. Replaces the earlier write-up for that day."),
+        day: ymd.optional().describe("Defaults to today."),
+      }),
+    },
+    safe(async ({ add, body, day }) => {
+      const lines = add === undefined ? undefined : [add].flat().map((x) => x.trim()).filter(Boolean);
+      const saved = await saveDailyLog(ctx, { day, body, add: lines?.length ? lines : undefined });
+      const what = [body !== undefined && "wrote up the day", lines?.length && `added ${lines.length === 1 ? "a note" : `${lines.length} notes`}`].filter(Boolean).join(" and ");
+      return { saved: true, log: logBrief(saved), receipt: `Daily log for ${saved.day}: ${what}.`, url: link("/log") };
+    }),
+  );
+
   // ---------- the "Needs you" queue (email triage and other automations) ----------
 
   server.registerTool(
     "log_run",
     {
       description:
-        "Record that a scheduled automation finished, so the dashboard can show when it last ran. Call it once at the very end of the email check (name 'email-check'), the morning brief ('morning-brief') or the meeting follow-up ('meeting-follow-up'), with a one-line result such as '3 replies drafted, 1 cleared, 2 tasks suggested'. Call it even when nothing needed the owner.",
+        "Record that a scheduled run finished, so the dashboard can show when it last ran. Call it once at the very end of the morning brief (name 'morning-brief') or the scheduled end-of-day log ('daily-log'), with a one-line result such as '5 meetings, 2 overdue' or '4 meetings, 6 emails, 3 tasks finished'. Not needed when he asks for either in a chat himself.",
       inputSchema: z.object({
-        name: z.string().describe("Lowercase with dashes: email-check, morning-brief, meeting-follow-up"),
+        name: z.string().describe("Lowercase with dashes: morning-brief, daily-log"),
         summary: z.string().optional(),
       }),
     },
@@ -788,7 +953,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "list_calendar",
     {
       description:
-        "The owner's meetings from the calendars connected to the dashboard (work, personal and side business), in order. Use it for 'what's on my calendar', 'when is my next 1:1 with Kai', or to plan around his day. Defaults to today through the next 7 days; pass from and to (YYYY-MM-DD) for another range, up to 4 weeks ahead. An event that is a 1:1 with someone the owner meets regularly names them in one_on_one_with. Read only: this cannot create or change events. An empty list with connected false means no calendar is connected yet (Settings, Connections).",
+        "The owner's meetings from the calendars connected to the dashboard (work, personal and side business), in order. Use it for 'what's on my calendar', 'when is my next 1:1 with Kai', or to plan around his day. Defaults to today through the next 7 days; pass from and to (YYYY-MM-DD) for another range, up to 4 weeks ahead. An event that is a 1:1 with someone the owner meets regularly names them in one_on_one_with. Read only: this cannot create or change events. It also returns his blocks: time he set aside on his dashboard for tasks (made with update_task block_time). An empty list with connected false means no calendar is connected yet (Settings, Connections).",
       inputSchema: z.object({ from: ymd.optional(), to: ymd.optional(), area: areaList }),
       annotations: { readOnlyHint: true },
     },
@@ -798,7 +963,15 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
       const events = await listCalendarEvents(db, start, to ?? addDays(start, 7), asList(area));
       const names = await personNames();
       const accounts = await listGoogleAccounts(db);
-      return { connected: accounts.length > 0, calendars: accounts.map((a) => ({ email: a.email, area: a.area, synced_at: a.calendar_synced_at ?? undefined })), count: events.length, events: events.map((e) => eventBrief(e, names, timezone)) };
+      const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+      const blocks = (await listTimeBlocks(db, start, to ?? addDays(start, 7))).filter((b) => !area || asList(area)!.includes(b.area as never));
+      return {
+        connected: accounts.length > 0,
+        calendars: accounts.map((a) => ({ email: a.email, area: a.area, synced_at: a.calendar_synced_at ?? undefined })),
+        count: events.length,
+        events: events.map((e) => eventBrief(e, names, timezone)),
+        blocks: blocks.map((b) => ({ day: b.day, start: hhmm(b.start_min), end: hhmm(b.start_min + b.minutes), task: b.title, task_id: b.task_id, done: b.status === "done" || undefined })),
+      };
     }),
   );
 

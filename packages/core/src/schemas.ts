@@ -5,6 +5,7 @@
 import { z } from "zod";
 import {
   AREAS,
+  BOARD_ROWS,
   ENTRY_KINDS,
   ENTRY_SOURCES,
   LINK_KINDS,
@@ -158,6 +159,8 @@ export const taskCreateSchema = z.object({
   /** Leave it out of the ordinary lists until this day. */
   hide_until: ymd.default(null),
   tags: z.array(z.string().trim().min(1).max(40)).max(20).optional(),
+  /** The calendar event it is for: it then shows in that meeting. */
+  meeting_ref: z.string().min(1).max(300).nullable().default(null),
 });
 export type TaskCreate = z.input<typeof taskCreateSchema>;
 
@@ -177,6 +180,9 @@ export const taskUpdateSchema = z
     area: areaSchema.nullable(),
     sort_order: z.number(),
     tags: z.array(z.string().trim().min(1).max(40)).max(20),
+    /** The row on the planning board; null puts it back in New. */
+    board: z.enum(BOARD_ROWS).nullable(),
+    meeting_ref: z.string().min(1).max(300).nullable(),
   })
   .partial()
   .strict();
@@ -220,6 +226,19 @@ export const digestSchema = z.object({
   run_date: ymd.unwrap().optional(),
   body: z.string().min(1).max(100_000),
 });
+
+/**
+ * A write to the daily log. `body` is the day written up and replaces what was written before;
+ * `add` is one or more things he said he did, added to the day's notes. `day` defaults to today.
+ */
+export const dailyLogSaveSchema = z
+  .object({
+    day: ymd.unwrap().optional(),
+    body: z.string().max(20_000).optional(),
+    add: z.array(z.string().trim().min(1).max(500)).max(30).optional(),
+  })
+  .strict()
+  .refine((d) => d.body !== undefined || (d.add?.length ?? 0) > 0, "Pass body, add, or both");
 
 const mailbox = z.union([z.literal(""), z.string().email().max(320)]);
 
@@ -319,8 +338,10 @@ export const runSchema = z.object({
   summary: z.string().max(1000).default(""),
 });
 
+const rowName = z.string().trim().min(1).max(40);
 export const settingsUpdateSchema = z
   .object({
+    board_names: z.object({ todo: rowName, waiting: rowName, back: rowName, figure: rowName }),
     stale_days: z.number().int().min(1).max(365),
     due_soon_days: z.number().int().min(1).max(90),
     timezone: z.string().min(1).max(100),
@@ -374,3 +395,18 @@ export const viewCreateSchema = z.object({
   pinned: z.boolean().default(true),
 });
 export const viewUpdateSchema = z.object({ name: z.string().trim().min(1).max(80), filter: taskFilterSchema, pinned: z.boolean() }).partial().strict();
+
+/** A block of time for a task: a day, a start (minutes after midnight) and a length. */
+export const timeBlockSchema = z.object({
+  task_id: z.string().min(1),
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "day must be YYYY-MM-DD"),
+  start_min: z.number().int().min(0).max(24 * 60 - 5),
+  minutes: z.number().int().min(5).max(12 * 60),
+});
+export const timeBlockUpdateSchema = timeBlockSchema.omit({ task_id: true }).partial().strict();
+
+/** A meeting's note: replace it (body) or add a line to it (add). */
+export const meetingNoteSchema = z
+  .object({ body: z.string().max(100_000).optional(), add: z.string().trim().min(1).max(10_000).optional() })
+  .strict()
+  .refine((v) => v.body !== undefined || v.add !== undefined, "Give body or add");

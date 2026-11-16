@@ -161,3 +161,24 @@ export async function listCalendarEvents(db: Db, fromDay: string, toDay: string,
   }
   return db.all<CalendarEvent>(`SELECT * FROM calendar_events WHERE day >= ? AND day <= ?${area} ORDER BY day, all_day DESC, starts_at LIMIT 400`, params);
 }
+
+/** One of the owner's people in a meeting: the 1:1 partner, a matched guest, or someone the title names. */
+export interface CalendarEventPerson {
+  event_id: string;
+  person_id: string;
+  name: string;
+}
+
+/** Who each meeting from `fromDay` to `toDay` is with, among his people. */
+export async function listCalendarEventPeople(db: Db, fromDay: string, toDay: string): Promise<CalendarEventPerson[]> {
+  return db.all<CalendarEventPerson>(
+    `SELECT x.event_id, x.person_id, p.name
+     FROM (SELECT event_id, person_id FROM calendar_event_people
+           UNION SELECT id, person_id FROM calendar_events WHERE person_id IS NOT NULL) x
+     JOIN calendar_events c ON c.id = x.event_id
+     JOIN people p ON p.id = x.person_id AND p.archived_at IS NULL
+     WHERE c.day >= ? AND c.day <= ?
+     ORDER BY c.starts_at, p.name`,
+    [fromDay, toDay],
+  );
+}

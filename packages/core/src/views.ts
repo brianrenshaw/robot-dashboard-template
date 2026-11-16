@@ -9,15 +9,18 @@ import { AmbiguousError, NotFoundError } from "./errors";
 import { insertRow } from "./rows";
 import { digestSchema, type TaskFilterInput } from "./schemas";
 import { getSettings } from "./settings";
-import type { Area, Ctx, Digest, Entry, Person, Project, Run, Settings, Task, TaskPerson } from "./types";
+import type { Area, Ctx, DailyLog, Digest, Entry, Person, Project, Run, Settings, Task, TaskPerson } from "./types";
 import { listTags, tagsFor, type TagCount } from "./tags";
 import { latestRuns } from "./runs";
 import { listOneOnOnes, type OneOnOneCard } from "./oneonones";
-import { listCalendarEvents, type CalendarEvent } from "./calsync";
+import { listCalendarEventPeople, listCalendarEvents, type CalendarEvent, type CalendarEventPerson } from "./calsync";
 import { peopleComingUp, type PersonComingUp } from "./plan";
 import { listGoogleAccounts } from "./connections";
+import { latestDailyLog, searchDailyLogs } from "./daylog";
 import { addDays, isoDaysAgo, newId, nowIso, todayInTz } from "./util";
 import { attachCardInfo, listProjects, type ProjectCard } from "./projects";
+import { listTimeBlocks, type TimeBlockView } from "./blocks";
+import { meetingNotes } from "./meetings";
 import { attachEntryInfo, entriesCreatedSince, listTimeline, type EntryView } from "./entries";
 
 export interface TaskItem extends Task {
@@ -75,6 +78,16 @@ async function withTags(db: Db, rows: Omit<TaskItem, "tags" | "people">[]): Prom
 export async function getTaskItem(db: Db, id: string): Promise<TaskItem | null> {
   const rows = await db.all<Omit<TaskItem, "tags" | "people">>(`${TASK_SELECT} WHERE t.id = ?`, [id]);
   return (await withTags(db, rows))[0] ?? null;
+}
+
+/** These tasks with their project, tags and people, open or done, in no particular order. */
+export async function tasksByIds(db: Db, ids: string[]): Promise<TaskItem[]> {
+  const rows: Omit<TaskItem, "tags" | "people">[] = [];
+  for (let i = 0; i < ids.length; i += 90) {
+    const chunk = ids.slice(i, i + 90);
+    rows.push(...(await db.all<Omit<TaskItem, "tags" | "people">>(`${TASK_SELECT} WHERE t.deleted_at IS NULL AND t.id IN (${placeholders(chunk.length)})`, chunk)));
+  }
+  return withTags(db, rows);
 }
 
 /** Open tasks: on their own, or on a project that is still open. */
@@ -319,12 +332,16 @@ export interface HomeData {
   today: string;
   settings: Settings;
   digest: Digest | null;
+  /** The most recent day in the daily log. The dashboard shows it only while it is today's. */
+  log: DailyLog | null;
   /** Every open project in the areas asked for. The desks sort these into your move and their move. */
   projects: ProjectCard[];
   /** The owner's own open tasks. */
   my_tasks: TaskItem[];
   /** Every open task with a due date that is not hidden, soonest first: all the dashboard lists. */
   dated_tasks: TaskItem[];
+  /** Every open task that is not hidden. The dashboard hangs these on the meetings they belong to. */
+  open_tasks: TaskItem[];
   /** The people he is about to meet, in the order of his next meeting with each. */
   people_next: PersonComingUp[];
   /** Every tag in use, most used first. */
@@ -335,6 +352,14 @@ export interface HomeData {
   one_on_ones: OneOnOneCard[];
   /** Calendar events from today through the next two weeks (empty until a calendar is connected). */
   calendar: CalendarEvent[];
+  /** Which of his people each of those meetings is with. */
+  calendar_people: CalendarEventPerson[];
+  /** The Monday of the week the planner shows: this week, or next week on a weekend. */
+  week_start: string;
+  /** Time he set aside for tasks, from week_start through the next two weeks. */
+  blocks: TimeBlockView[];
+  /** The notes he wrote for those meetings (one per meeting; source_ref "calendar:<event id>"). */
+  meeting_notes: EntryView[];
   /** True once at least one Google account is connected in Settings. */
   calendar_connected: boolean;
   /** Activity and task progress for each project, keyed by project id. */
@@ -346,21 +371,34 @@ export interface HomeData {
   recent: EntryView[];
 }
 
+/** The Monday of this week; on a Saturday or Sunday, the coming Monday. */
+export function weekStart(today: string): string {
+  const dow = new Date(`${today}T12:00:00Z`).getUTCDay(); // 0 Sunday
+  return addDays(today, dow === 0 ? 1 : dow === 6 ? 2 : 1 - dow);
+}
+
 export async function getHome(db: Db, areas?: Area[]): Promise<HomeData> {
   const settings = await getSettings(db);
   const today = todayInTz(settings.timezone);
+  const calendar = await listCalendarEvents(db, weekStart(today), addDays(today, 14), areas);
   return {
     today,
     settings,
     digest: await latestDigest(db),
+    log: await latestDailyLog(db),
     projects: (await listProjects(db, { areas, sort: "priority" })).filter((p) => p.status !== "done"),
     my_tasks: await myTasks(db, areas),
     dated_tasks: await listTasks(db, { areas, due: "dated" }),
+    open_tasks: await listTasks(db, { areas }),
     people_next: await peopleComingUp(db, today),
     tags: await listTags(db),
     runs: await latestRuns(db),
     one_on_ones: await listOneOnOnes(db, areas),
-    calendar: await listCalendarEvents(db, today, addDays(today, 14), areas),
+    calendar,
+    calendar_people: await listCalendarEventPeople(db, weekStart(today), addDays(today, 14)),
+    week_start: weekStart(today),
+    blocks: await listTimeBlocks(db, weekStart(today), addDays(weekStart(today), 18)),
+    meeting_notes: await meetingNotes(db, calendar.map((e) => e.id)),
     calendar_connected: (await listGoogleAccounts(db)).length > 0,
     pulse: await projectPulse(db),
     overdue: await overdue(db, areas, today),
@@ -407,16 +445,18 @@ export interface SearchResults {
   projects: ProjectCard[];
   people: Person[];
   entries: EntryView[];
+  /** Days in the daily log whose text matches, newest first. */
+  logs: DailyLog[];
 }
 
 /**
- * Search across tasks, projects, people and entries. Uses LIKE on purpose: D1 supports FTS5, but
+ * Search across tasks, projects, people, entries and the daily log. Uses LIKE on purpose: D1 supports FTS5, but
  * `wrangler d1 export` cannot export databases with virtual tables, which would break backups.
  * Everything goes through this one function so it can be swapped later.
  */
 export async function search(db: Db, q: string, areas?: Area[], limit = 20): Promise<SearchResults> {
   const words = q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-  if (!words.length) return { tasks: [], projects: [], people: [], entries: [] };
+  if (!words.length) return { tasks: [], projects: [], people: [], entries: [], logs: [] };
   const lim = Math.min(Math.max(limit, 1), 100);
   const build = (cols: string[]) => {
     const params: Param[] = [];
@@ -459,7 +499,9 @@ export async function search(db: Db, q: string, areas?: Area[], limit = 20): Pro
     );
     entries = await attachEntryInfo(db, rows);
   }
-  return { tasks, projects, people, entries };
+  // The daily log belongs to no desk, so it is searched whichever desk he is at.
+  const logs = await searchDailyLogs(db, words, lim);
+  return { tasks, projects, people, entries, logs };
 }
 
 // ---------- Fuzzy resolution (used by MCP; never guesses on writes) ----------

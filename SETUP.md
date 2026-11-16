@@ -187,7 +187,8 @@ to guess a person, to show proposed changes before writing). They are `INSTRUCTI
 - **Google Calendar** (today's meetings and 1:1 dates): the Settings page of the dashboard shows
   the steps. You create your own Google sign-in client; the site asks only to read your calendar.
 - **Calendar feed of due dates**: Settings, Copy URL, then subscribe in your calendar app.
-- **Morning brief**: a scheduled Claude task; the prompt is in `docs/automations/`.
+- **Morning brief** and **daily log**: scheduled Claude tasks; the prompts and how to set them up
+  are in `docs/automations/`.
 - **Your own domain** (for example `dash.example.com`): see the comment near the top of
   `workers/app/wrangler.jsonc`. Add the domain to the Cloudflare Access application too, and
   change `APP_URL` in `workers/mcp/wrangler.jsonc` so the chatbot's links point at it.
@@ -202,6 +203,10 @@ to guess a person, to show proposed changes before writing). They are `INSTRUCTI
   two cron lines in `.github/workflows/backup.yml`). `migrations/0001_initial.sql` also sets it,
   but an applied migration is never edited: add a new migration that updates the `timezone`
   setting. Run `npm run typecheck && npm test` afterwards.
+- **The owner's name.** The planner drops the owner's own name from meeting titles ("Kai and
+  Alex 1:1" shows as "Kai 1:1"). Change `Alex` and `Morgan` in `meetingTitle` in
+  `apps/web/src/lib/plan.ts` (and its test in `plan.test.ts`) to the new owner's first name and
+  surname.
 - **The three desks.** Work, Personal and Side business. `CLAUDE.md` says where to rename one or
   add a fourth.
 - **The chatbot's standing instructions.** `INSTRUCTIONS` in `workers/mcp/src/tools.ts` still

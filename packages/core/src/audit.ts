@@ -136,6 +136,9 @@ const FIELD_LABEL: Record<string, string> = {
   person_id: "assignee",
   project_id: "project",
   occurred_at: "date",
+  board: "board row",
+  start_min: "start",
+  minutes: "length",
 };
 
 async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
@@ -188,6 +191,14 @@ async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
         thing = `the digest for ${row.run_date}`;
         link = "/";
         break;
+      case "time_blocks":
+        thing = `a block of time on ${row.day}`;
+        link = "/";
+        break;
+      case "daily_logs":
+        thing = `the log for ${row.day}`;
+        link = "/log";
+        break;
       case "settings":
         thing = `setting ${row.key}`;
         link = "/settings";
@@ -235,6 +246,7 @@ async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
         else if (r.table_name === "project_people") summary = `${who} linked ${thing} to ${project}`;
         else if (r.table_name === "projects") summary = `${who} created project ${thing}`;
         else if (r.table_name === "digests") summary = `${who} saved ${thing}`;
+        else if (r.table_name === "daily_logs") summary = `${who} started ${thing}`;
         else if (r.table_name === "queue_items") summary = `${who} queued ${thing}`;
         else if (r.table_name === "one_on_ones") summary = `${who} started ${thing}`;
         else if (r.table_name === "connection_secrets") summary = `${who} saved ${thing}`;
@@ -248,7 +260,10 @@ async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
         let keys = before && after ? changedKeys(before, after).filter((k) => !["updated_at", "last_activity_at", "resolved_at"].includes(k)) : [];
         // A board move changes order and status together; describe it as a move.
         if (keys.length > 1) keys = keys.filter((k) => k !== "sort_order");
-        if (r.table_name === "agenda_items" && keys.includes("status")) {
+        if (r.table_name === "daily_logs") {
+          // The written-up day changed, or he only jotted something down.
+          summary = keys.includes("body") ? `${who} wrote up ${thing}` : `${who} added a note to ${thing}`;
+        } else if (r.table_name === "agenda_items" && keys.includes("status")) {
           const to = String(after?.status);
           const whose = personNames.get(row.person_id) ?? "someone";
           summary = to === "open" ? `${who} reopened ${thing} for ${whose}` : `${who} ${to === "done" ? "checked off" : "dropped"} ${thing} for ${whose}`;

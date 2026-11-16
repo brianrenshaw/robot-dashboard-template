@@ -361,6 +361,211 @@ input[type="number"].field::-webkit-inner-spin-button { display: none; }
 .chevron { transition: transform 260ms var(--ease-out); }
 .chevron[data-open="true"] { transform: rotate(90deg); }
 
+/*
+  The dashboard's line of meetings (pages/Dashboard.tsx). Every row is time | mark | content,
+  and one thin line runs through the mark column from now to the last meeting.
+*/
+.ahead { position: relative; --ahead-gutter: 70px; }
+.ahead::before { content: ""; position: absolute; left: calc(var(--ahead-gutter) + 8px); top: 8px; bottom: 8px; width: 1px; background: color-mix(in srgb, var(--fg) 14%, transparent); }
+.ahead-row { position: relative; display: grid; grid-template-columns: var(--ahead-gutter) 17px minmax(0, 1fr); align-items: start; }
+.ahead-time { padding: 8px 12px 0 0; text-align: right; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.ahead-mark { display: flex; justify-content: center; padding-top: 13px; }
+.ahead-mark i { width: 7px; height: 7px; border-radius: 50%; background: var(--paper); box-shadow: 0 0 0 1.5px var(--faint); }
+.ahead-mark i[data-mark="full"] { width: 9px; height: 9px; margin-top: -1px; background: var(--accent); box-shadow: 0 0 0 3px var(--paper); }
+.ahead-mark i[data-mark="now"] { margin-top: -7px; background: var(--late); box-shadow: 0 0 0 3px var(--paper); }
+.ahead-row:has(i[data-mark="now"]) .ahead-time { padding-top: 0; }
+@media (max-width: 480px) {
+  .ahead { --ahead-gutter: 56px; }
+  .ahead-time { padding-right: 8px; font-size: 11px; }
+}
+
+/*
+  The planner (components/Planner.tsx): the week or one day as time blocks, pinned while the
+  board scrolls under it; the board's rows (New first); the panel that asks when.
+  Meetings are quiet gray. His own blocks are white with an accent edge. Only the preview of a
+  block being set is tinted, and it turns red when it runs into something.
+*/
+.plan, .plan-panel { --plan-tint: 14%; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .plan { --plan-tint: 30%; } }
+:root[data-theme="dark"] .plan { --plan-tint: 30%; }
+.plan-tools { display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin: -6px 0 10px; }
+.plan-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--field); }
+.plan-seg button { height: 28px; padding: 0 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.plan-seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-1); }
+
+.plan-main { display: flex; flex-direction: column; gap: 22px; }
+.plan-pinned { position: sticky; top: calc(56px + env(safe-area-inset-top, 0px)); z-index: 20; background: var(--paper); padding-block: 8px 12px; margin-top: -8px; box-shadow: 0 10px 12px -12px rgba(20, 20, 40, 0.25); }
+.plan-weekscroll { overflow-x: auto; margin: 0 -4px; padding: 0 4px; }
+/* On a phone a pinned day would cover the board, so there it scrolls away like the rest. */
+@media (max-width: 640px) { .plan-pinned { position: static; box-shadow: none; } }
+.plan-week { display: grid; min-width: 720px; }
+.plan-week.day { min-width: 0; }
+.plan-dayhead { padding: 0 6px 6px; min-width: 0; }
+.plan-dayhead button { display: inline-flex; align-items: center; gap: 6px; border-radius: 8px; padding: 2px 6px 2px 4px; margin: -2px -4px; }
+.plan-dayhead button:hover { background: var(--field-hover); }
+.plan-dayhead .wd { font-size: 11px; font-weight: 650; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.plan-dayhead .num { display: grid; place-items: center; min-width: 26px; height: 26px; border-radius: 999px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.plan-dayhead.today .wd { color: var(--late); }
+.plan-dayhead.today .num { background: var(--late); color: #fff; }
+.plan-dayhead small { display: block; margin-top: 2px; font-size: 11px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-daypick { display: flex; flex-wrap: wrap; gap: 4px; padding-bottom: 8px; }
+.plan-daypick button { height: 30px; padding: 0 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.plan-daypick button:hover { background: var(--field-hover); color: var(--fg); }
+.plan-daypick button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: var(--shadow-1); }
+.plan-daypick button span { font-weight: 500; color: var(--faint); margin-left: 4px; }
+.plan-hours { position: relative; }
+.plan-hours i { position: absolute; right: 8px; font-style: normal; font-size: 10.5px; color: var(--faint); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
+.plan-col { position: relative; border-left: 1px solid var(--line); background: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px var(--hour)); transition: background-color 120ms; }
+.plan-col.today { background-color: color-mix(in srgb, var(--fg) 2.5%, transparent); }
+.plan-col.is-over { background-color: var(--accent-soft); }
+.plan-ev, .plan-blk { position: absolute; box-sizing: border-box; border-radius: 7px; padding: 3px 7px; font-size: 11.5px; line-height: 1.25; overflow: hidden; text-align: left; }
+.plan-week.day .plan-ev, .plan-week.day .plan-blk { font-size: 13px; padding: 5px 10px; }
+/* Meetings: a tint of their desk's color with a rail of it. His own time: the desk color, solid. */
+.plan-ev { background: color-mix(in srgb, var(--desk, var(--idle)) var(--plan-tint), var(--surface)); color: var(--muted); box-shadow: inset 3px 0 0 var(--desk, var(--idle)); padding-left: 9px; }
+.plan-ev b { color: color-mix(in srgb, var(--desk, var(--fg)) 45%, var(--fg)) !important; }
+a.plan-ev:hover { filter: brightness(0.97); }
+.plan-ev b, .plan-blk b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; color: var(--fg); }
+.plan-ev small, .plan-blk small { display: block; font-size: 10.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.plan-ev.mine, .plan-blk { background: var(--desk, var(--accent)); color: #fff; box-shadow: 0 1px 2px rgba(20, 20, 40, 0.18); padding-left: 8px; cursor: pointer; }
+.plan-ev.mine b, .plan-blk b { color: #fff !important; }
+.plan-ev.mine small, .plan-blk small { color: rgba(255, 255, 255, 0.8); }
+.plan-ev.mine:hover, .plan-blk:hover { filter: brightness(1.06); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--desk, var(--accent)) 60%, transparent); }
+.plan-ev.mine.lit { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--desk, var(--accent)); }
+.plan-blk.done { opacity: 0.55; }
+.plan-blk.done b { text-decoration: line-through; }
+.plan-blk.editing { opacity: 0.25; }
+.plan-blk.preview { background: color-mix(in srgb, var(--desk, var(--accent)) 18%, var(--surface)); color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--desk, var(--accent)); z-index: 5; pointer-events: none; }
+.plan-blk.preview b { color: var(--fg) !important; }
+.plan-blk.preview.clash { background: color-mix(in srgb, var(--late) 10%, transparent); box-shadow: inset 0 0 0 1.5px var(--late); }
+.plan-now { position: absolute; left: -3px; right: 0; height: 2px; border-radius: 2px; background: var(--late); pointer-events: none; z-index: 6; }
+.plan-now::before { content: ""; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--late); }
+
+.plan-boardhead { display: flex; align-items: center; justify-content: space-between; }
+.plan-boardhead h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.plan-boardhead button { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.plan-boardhead button:hover { background: var(--field-hover); color: var(--fg); }
+.plan-boardfold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 320ms var(--ease-out); }
+.plan-boardfold > div { min-height: 0; overflow: hidden; padding: 2px; margin: 0 -2px; transition: opacity 200ms var(--ease-out) 100ms; }
+.plan-boardfold.shut { grid-template-rows: 0fr; }
+.plan-boardfold.shut > div { opacity: 0; transition: opacity 90ms var(--ease-in); }
+.plan-board { margin-top: 10px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-1); padding: 4px 0; }
+/* Each row has a color of its own: a dot, its count, and its cards' circles. */
+.plan-row { --row: var(--idle); position: relative; padding: 0 14px; transition: background-color 120ms; }
+.plan-row[data-row="new"] { --row: #0ea5e9; }
+.plan-row[data-row="todo"] { --row: var(--ok); }
+.plan-row[data-row="waiting"] { --row: var(--wait); }
+.plan-row[data-row="back"] { --row: var(--soon); }
+.plan-row[data-row="figure"] { --row: #e0457b; }
+.plan-row + .plan-row::before { content: ""; position: absolute; left: 14px; right: 14px; top: 0; height: 1px; background: var(--line); }
+.plan-row.is-over { background: color-mix(in srgb, var(--row) 9%, transparent); }
+.plan-rowhead { display: flex; align-items: center; gap: 8px; min-height: 46px; cursor: pointer; user-select: none; -webkit-user-select: none; }
+.plan-rowhead .tog { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--faint); flex-shrink: 0; }
+.plan-rowhead:hover .tog { background: var(--field); color: var(--fg); }
+.plan-rowhead .tog svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; fill: none; transition: transform 280ms var(--ease-out); }
+.plan-row.open .tog svg { transform: rotate(90deg); }
+.plan-rowhead .rowname { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.plan-rowhead [contenteditable] { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; outline: none; border-radius: 5px; padding: 1px 4px; margin: 0 -4px; cursor: text; white-space: nowrap; }
+.plan-rowhead [contenteditable]:hover, .plan-rowhead [contenteditable]:focus { background: var(--field); }
+.plan-rowhead .dot { order: 1; width: 9px; height: 9px; border-radius: 3px; background: var(--row); flex-shrink: 0; }
+.plan-rowhead .tog { order: 0; }
+.plan-rowhead .rowname, .plan-rowhead [contenteditable] { order: 2; }
+.plan-rowhead .n { order: 3; min-width: 22px; height: 20px; padding: 0 7px; box-sizing: border-box; border-radius: 999px; display: inline-grid; place-items: center;
+  font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--row) 80%, var(--fg)); background: color-mix(in srgb, var(--row) 14%, transparent); }
+.plan-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 320ms var(--ease-out); }
+.plan-row.open .plan-fold { grid-template-rows: 1fr; }
+.plan-fold > div { min-height: 0; overflow: hidden; opacity: 0; transition: opacity 90ms var(--ease-in); }
+.plan-row.open .plan-fold > div { opacity: 1; transition: opacity 200ms var(--ease-out) 120ms; }
+.plan-row .plan-stack { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 2px 2px 14px 34px; }
+.plan-main.dayview .plan-row .plan-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 2px; }
+@media (max-width: 1000px) { .plan-row .plan-stack { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) { .plan-row .plan-stack { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 2px; } }
+@media (max-width: 440px) { .plan-row .plan-stack { grid-template-columns: minmax(0, 1fr); } .plan-main.dayview .plan-row .plan-stack { grid-template-columns: minmax(0, 1fr); } }
+.plan-row .plan-stack:empty::after { content: "Nothing here. Drag a card in"; grid-column: 1 / -1; font-size: 12.5px; color: var(--faint); padding: 4px 0 2px; }
+@media (min-width: 900px) {
+  .plan-main.dayview { display: grid; grid-template-columns: minmax(340px, 440px) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .plan-main.dayview .plan-pinned { margin: 0; padding: 0; box-shadow: none; top: calc(68px + env(safe-area-inset-top, 0px)); }
+}
+
+.plan-card { position: relative; display: grid; grid-template-columns: 20px minmax(0, 1fr); column-gap: 9px; align-content: start; box-sizing: border-box; min-height: 88px; padding: 9px 11px;
+  border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-1); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+  transition: box-shadow 160ms var(--ease-out), opacity 200ms var(--ease-in), transform 160ms var(--ease-out); }
+.plan-card:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--row, var(--line)) 35%, transparent), 0 6px 16px -8px rgba(20, 20, 40, 0.25); transform: translateY(-1px); }
+.plan-card .chk { grid-row: span 2; margin-top: 1px; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--row, var(--faint)) 70%, var(--faint)); display: grid; place-items: center; transition: background-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out), transform 80ms; }
+.plan-card .chk:hover { box-shadow: inset 0 0 0 2px var(--row, var(--accent)); }
+.plan-card .chk:active { transform: scale(0.88); }
+.plan-card .chk svg { width: 10px; height: 10px; stroke: var(--on-accent); stroke-width: 2.4; fill: none; stroke-dasharray: 14; stroke-dashoffset: 14; transition: stroke-dashoffset 220ms var(--ease-out) 40ms; }
+.plan-card.ticked .chk { background: var(--row, var(--accent)); box-shadow: none; }
+.plan-card.ticked .chk svg { stroke-dashoffset: 0; }
+.plan-card.ticked .t { color: var(--faint); text-decoration: line-through; }
+.plan-card.ticked { opacity: 0.55; }
+.plan-card .t { font-size: 13px; font-weight: 550; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.plan-card .m { margin-top: 5px; font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.plan-card .m .faint { color: var(--faint); }
+.plan-card .m .late { color: var(--late); font-weight: 600; }
+.plan-card .m .soon { color: var(--soon); font-weight: 600; }
+.plan-card .m .when { color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 0 5px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.plan-card .m .mail { color: var(--faint); display: inline-flex; }
+.plan-card .m .mail:hover { color: var(--accent); }
+.plan-row .plan-card.ins-before { box-shadow: -6px 0 0 -3px var(--accent), var(--shadow-1); }
+.plan-row .plan-card.ins-after { box-shadow: 6px 0 0 -3px var(--accent), var(--shadow-1); }
+.plan-ghost { position: fixed; z-index: 100; pointer-events: none; box-shadow: var(--shadow-3) !important; transform: scale(1.02); }
+body.plan-dragging, body.plan-dragging * { user-select: none; -webkit-user-select: none; cursor: grabbing !important; }
+
+.plan-panel { position: fixed; z-index: 60; width: 340px; max-width: calc(100vw - 24px); box-sizing: border-box; background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-3); padding: 14px;
+  opacity: 0; transform: translateY(4px) scale(0.98); transition: opacity 200ms var(--ease-out), transform 260ms var(--ease-out); }
+.plan-panel.open { opacity: 1; transform: none; }
+.plan-panel .what { font-size: 13.5px; font-weight: 650; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.plan-panel .src { margin-top: 4px; font-size: 12px; color: var(--faint); line-height: 1.35; }
+.plan-panel .src a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.plan-panel .lanes { margin-top: 10px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.plan-panel input { margin-top: 12px; width: 100%; box-sizing: border-box; height: 38px; border: 0; border-radius: 9px; background: var(--field); padding: 0 11px; font-size: 15px; font-weight: 550; outline: none; color: var(--fg); }
+.plan-panel input:focus { box-shadow: 0 0 0 3px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.plan-panel .read { margin: 6px 2px 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.plan-panel .lanes + .read { margin-top: 12px; }
+.plan-panel .read.clash { color: var(--late); }
+.plan-panel .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.plan-panel .lbl { width: 100%; font-size: 11px; font-weight: 650; color: var(--faint); margin-bottom: -2px; }
+.plan-panel .chip { height: 28px; padding: 0 10px; border-radius: 999px; background: var(--field); font-size: 12.5px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.plan-panel .lanes .chip { height: 26px; font-size: 12px; }
+.plan-panel .chip:hover { background: var(--field-hover); }
+.plan-panel .chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.plan-panel .actions { display: flex; align-items: center; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+.plan-panel .go { height: 34px; padding: 0 16px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-weight: 650; font-size: 13px; }
+.plan-panel .quiet { height: 34px; padding: 0 10px; border-radius: 9px; font-size: 13px; color: var(--muted); }
+.plan-panel .quiet:hover { background: var(--field); color: var(--fg); }
+.plan-panel .danger { color: var(--late); }
+.plan-panel .push { margin-left: auto; }
+
+/* A meeting that carries tasks or a note: a small dot. Its panel. */
+button.plan-ev { cursor: pointer; }
+button.plan-ev:hover { filter: brightness(0.97); }
+.plan-ev.lit { box-shadow: inset 3px 0 0 var(--desk, var(--idle)), inset 0 0 0 1.5px var(--desk, var(--accent)); }
+.plan-ev.has::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--desk, var(--accent)); }
+.plan-meeting { width: 380px; }
+.plan-meeting .src a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.plan-meeting .mtasks { margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.plan-meeting .mtasks .field { margin-top: 6px; }
+.plan-meeting .mtask { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 9px; align-items: start; padding: 5px 0; font-size: 13.5px; line-height: 1.35; }
+.plan-meeting .mtask .chk { margin-top: 1px; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--faint); display: grid; place-items: center; transition: background-color 180ms var(--ease-out), box-shadow 180ms var(--ease-out); }
+.plan-meeting .mtask .chk:hover { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.plan-meeting .mtask .chk svg { width: 10px; height: 10px; stroke: var(--on-accent); stroke-width: 2.4; fill: none; stroke-dasharray: 14; stroke-dashoffset: 14; transition: stroke-dashoffset 220ms var(--ease-out) 40ms; }
+.plan-meeting .mtask.ticked .chk { background: var(--accent); box-shadow: none; }
+.plan-meeting .mtask.ticked .chk svg { stroke-dashoffset: 0; }
+.plan-meeting .mtask.ticked span { color: var(--faint); text-decoration: line-through; }
+.plan-meeting > .lbl { margin: 14px 0 6px; font-size: 11px; font-weight: 650; color: var(--faint); }
+.plan-meeting textarea { width: 100%; box-sizing: border-box; font-size: 13.5px; }
+
+.plan-toast { position: fixed; z-index: 70; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 10px); opacity: 0;
+  background: var(--fg); color: var(--paper); border-radius: 12px; padding: 8px 8px 8px 14px; font-size: 13px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-3);
+  max-width: calc(100vw - 32px); transition: opacity 200ms var(--ease-out), transform 260ms var(--ease-out); }
+.plan-toast span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.plan-toast button { height: 28px; padding: 0 12px; border-radius: 8px; font-weight: 650; background: color-mix(in srgb, var(--paper) 18%, transparent); flex-shrink: 0; }
+@media (min-width: 768px) { .plan-toast { bottom: calc(24px + env(safe-area-inset-bottom, 0px)); } }
+@media (prefers-reduced-motion: reduce) {
+  .plan-panel, .plan-fold, .plan-boardfold, .plan-toast { transition-property: opacity, visibility !important; }
+}
+
 /* Task check: the mark draws in. */
 @keyframes check-draw { from { stroke-dashoffset: 14; } to { stroke-dashoffset: 0; } }
 .check-path { stroke-dasharray: 14; animation: check-draw 240ms var(--ease-out) both; }

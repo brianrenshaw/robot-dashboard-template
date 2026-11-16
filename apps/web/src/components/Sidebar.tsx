@@ -6,7 +6,7 @@
 //
 // Top to bottom, with space between the groups instead of headings (as Things does):
 //   Today and Tasks; the views (built in, then the ones he saved, then the look-back);
-//   People, Projects and Notes; his tags; Activity and Settings at the foot.
+//   People, Projects, Notes and the daily Log; his tags; Activity and Settings at the foot.
 // It carries no counts: he finds rows of numbers overwhelming.
 
 import { createContext, useContext, type ReactNode } from "react";
@@ -87,6 +87,9 @@ export function Sidebar({ open, docked, onClose }: { open: boolean; docked: bool
           </Row>
           <Row to={`${base}/notes`} icon="note" active={pathname.endsWith("/notes")}>
             Notes
+          </Row>
+          <Row to="/log" icon="digest" active={pathname === "/log"}>
+            Log
           </Row>
           {(home?.tags.length ?? 0) > 0 && (
             <>

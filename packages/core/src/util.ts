@@ -3,7 +3,7 @@
 
 const ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"; // Crockford base32, as used by ULID
 
-export type IdPrefix = "prj" | "per" | "ent" | "tsk" | "lnk" | "tag" | "dig" | "aud" | "que" | "run" | "agn" | "viw";
+export type IdPrefix = "prj" | "per" | "ent" | "tsk" | "lnk" | "tag" | "dig" | "aud" | "que" | "run" | "agn" | "viw" | "blk";
 
 let lastTime = 0;
 let lastRandom: number[] = [];
