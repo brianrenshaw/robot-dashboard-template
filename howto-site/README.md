@@ -20,8 +20,8 @@ node build.mjs
 CLOUDFLARE_ACCOUNT_ID=<the account id> npx wrangler deploy
 ```
 
-**Links to GitHub are off while this repository is private** (a visitor would get a 404). Once it
-is public, build with `SHOW_REPO=1 node build.mjs` and deploy: the GitHub link, the template
-bullet and the guide's "Where to look in the template" come back. The passages are marked in the
-Markdown with `<!--repo-->...<!--/repo-->` (shown only with links on) and `<!--norepo: ...-->`
-(shown only with links off; GitHub never shows a comment).
+**Links to GitHub are on**: both templates (robot-dashboard-template and robot-health-template)
+are public. If one goes private, build with `SHOW_REPO=0 node build.mjs` and deploy, and the
+links, the template bullets and the guide's "Where to look in the templates" are left out. The
+passages are marked in the Markdown with `<!--repo-->...<!--/repo-->` (shown only with links on)
+and `<!--norepo: ...-->` (shown only with links off; GitHub never shows a comment).

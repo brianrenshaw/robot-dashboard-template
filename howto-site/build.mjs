@@ -11,14 +11,15 @@ import { fileURLToPath } from "node:url";
 import { Marked } from "marked";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = "https://github.com/brianrenshaw/robot-productivity-template";
+const REPO = "https://github.com/brianrenshaw/robot-dashboard-template";
 /**
- * Whether the pages link to the GitHub repository. Off while the repository is private (a visitor
- * would get a 404). Passages about it are marked in the Markdown: <!--repo-->...<!--/repo--> is
- * shown only when this is on, and <!--norepo: ...--> (a comment, so GitHub never shows it) only
- * when it is off. Turn on with SHOW_REPO=1 once the repository is public.
+ * Whether the pages link to the GitHub repositories. On: both templates are public (since
+ * 2026-11-16). Build with SHOW_REPO=0 to leave the links out, e.g. if a repository goes
+ * private. Passages about them are marked in the Markdown: <!--repo-->...<!--/repo--> is shown
+ * only when this is on, and <!--norepo: ...--> (a comment, so GitHub never shows it) only
+ * when it is off.
  */
-const SHOW_REPO = process.env.SHOW_REPO === "1";
+const SHOW_REPO = process.env.SHOW_REPO !== "0";
 const forRepo = (md) =>
   md
     .replace(/<!--repo-->([\s\S]*?)<!--\/repo-->/g, (_, a) => (SHOW_REPO ? a : ""))
@@ -67,7 +68,7 @@ function page({ title, description, path, body, toc }) {
     ["/how-to/build", "Build your own"],
   ]
     .map(([href, label]) => `<a href="${href}"${href === path ? ' aria-current="page"' : ""}>${label}</a>`)
-    .join("") + (SHOW_REPO ? `<a href="${REPO}" rel="noopener">GitHub</a>` : "");
+    .join("") + (SHOW_REPO ? `<a href="/how-to#build-your-own">Templates</a>` : "");
   const contents = toc?.length
     ? `<nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul>${toc.map((h) => `<li><a href="#${h.id}">${h.text}</a></li>`).join("")}</ul></nav>`
     : "";
@@ -89,7 +90,7 @@ function page({ title, description, path, body, toc }) {
 <body>
 <header class="top"><div class="wrap"><a class="name" href="/how-to">Brian Renshaw</a><nav>${nav}</nav></div></header>
 <main class="wrap"><article>${article}</article></main>
-<footer class="wrap foot"><p>Built the way it describes: with an AI coding tool, one request at a time.${SHOW_REPO ? ` The template on <a href="${REPO}" rel="noopener">GitHub</a> is MIT licensed and shared as is.` : ""}</p></footer>
+<footer class="wrap foot"><p>Built the way it describes: with an AI coding tool, one request at a time.${SHOW_REPO ? ` The templates on GitHub are MIT licensed and shared as is.` : ""}</p></footer>
 <script>${SCRIPT}</script>
 </body>
 </html>`;
