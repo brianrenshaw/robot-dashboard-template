@@ -120,6 +120,8 @@ account, and a clear idea of what you want to keep track of.
 - **[The step-by-step guide](/how-to/build)**: the order to do things in, what to tell your AI at
   each step, and how to check it worked.
 <!--repo-->
-- **[The project dashboard, as a template](https://github.com/brianrenshaw/robot-dashboard)**: a
+- **[The project dashboard, as a template](https://github.com/brianrenshaw/robot-productivity-template)**: a
   working copy with made-up data, to run as your own or to point your AI at.
+- **[The health dashboard, as a template](https://github.com/brianrenshaw/robot-health-template)**: the same, for health: Apple Health,
+  food against your targets, a lifting coach, and a library of sources you trust.
 <!--/repo-->

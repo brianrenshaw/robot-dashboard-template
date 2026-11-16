@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { Marked } from "marked";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = "https://github.com/brianrenshaw/robot-dashboard";
+const REPO = "https://github.com/brianrenshaw/robot-productivity-template";
 /**
  * Whether the pages link to the GitHub repository. Off while the repository is private (a visitor
  * would get a 404). Passages about it are marked in the Markdown: <!--repo-->...<!--/repo--> is
