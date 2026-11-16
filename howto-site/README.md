@@ -4,7 +4,7 @@ The page at https://briandrenshaw.com/how-to (the overview) and /how-to/build (t
 `GUIDE.md`, as a web page). **It is not part of the starter**: if you copy this repository to make
 your own dashboard, delete this folder.
 
-- `overview.md`: the overview page. `../GUIDE.md`: the guide. `style.css`: how both look.
+- `home.html`: the overview page, as finished HTML (its GitHub links are marked like the guide's). `../GUIDE.md`: the guide. `style.css`: how both look.
 - `build.mjs` turns them into one small Cloudflare Worker, `dist/worker.js` (plain HTML with the
   styles inline; nothing loaded from other sites). `dist/preview/` has the same pages as files,
   to look at locally.

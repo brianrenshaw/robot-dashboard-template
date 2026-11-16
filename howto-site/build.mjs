@@ -1,4 +1,4 @@
-// Builds the page at briandrenshaw.com/how-to (overview.md) and /how-to/build (../GUIDE.md) into
+// Builds the page at briandrenshaw.com/how-to (home.html) and /how-to/build (../GUIDE.md) into
 // one small Cloudflare Worker, dist/worker.js. The pages are plain HTML with the styles inline;
 // the only script is the "Copy" button on the prompts, allowed by its hash in the page's
 // Content-Security-Policy. Nothing is loaded from another site.
@@ -62,19 +62,28 @@ const SCRIPT = `document.addEventListener("click",function(e){var b=e.target.clo
 const SCRIPT_HASH = createHash("sha256").update(SCRIPT).digest("base64");
 const CSS = readFileSync(join(HERE, "style.css"), "utf8");
 
-function page({ title, description, path, body, toc }) {
+function page({ title, description, path, body, toc, cls, label }) {
   const nav = [
     ["/how-to", "Overview"],
     ["/how-to/build", "Build your own"],
   ]
     .map(([href, label]) => `<a href="${href}"${href === path ? ' aria-current="page"' : ""}>${label}</a>`)
-    .join("") + (SHOW_REPO ? `<a href="/how-to#build-your-own">Templates</a>` : "");
+    .join("") + (SHOW_REPO ? `<a href="/how-to#templates">Templates</a>` : "");
   const contents = toc?.length
     ? `<nav class="toc" aria-label="On this page"><p class="toc-title">On this page</p><ul>${toc.map((h) => `<li><a href="#${h.id}">${h.text}</a></li>`).join("")}</ul></nav>`
     : "";
-  // The contents go after the title and the opening paragraphs, just before the first section.
-  const at = body.indexOf("<h2");
-  const article = contents && at >= 0 ? body.slice(0, at) + contents + body.slice(at) : body;
+  // The guide: its title moves into the dark band at the top; the contents go after the opening
+  // paragraphs, just before the first section. The home page is written as finished HTML.
+  let main;
+  if (cls === "page-guide") {
+    const h1 = /<h1>([\s\S]*?)<\/h1>\n?/.exec(body);
+    const rest = h1 ? body.replace(h1[0], "") : body;
+    const at = rest.indexOf("<h2");
+    const article = contents && at >= 0 ? rest.slice(0, at) + contents + rest.slice(at) : rest;
+    main = `<header class="doc-head"><div class="wrap"><p class="label">${label}</p><h1>${h1 ? h1[1] : title}</h1></div></header><div class="doc"><article>${article}</article></div>`;
+  } else {
+    main = body;
+  }
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -87,24 +96,25 @@ function page({ title, description, path, body, toc }) {
 <meta name="color-scheme" content="light dark">
 <style>${CSS}</style>
 </head>
-<body>
+<body class="${cls}">
 <header class="top"><div class="wrap"><a class="name" href="/how-to">Brian Renshaw</a><nav>${nav}</nav></div></header>
-<main class="wrap"><article>${article}</article></main>
+<main>${main}</main>
 <footer class="wrap foot"><p>Built the way it describes: with an AI coding tool, one request at a time.${SHOW_REPO ? ` The templates on GitHub are MIT licensed and shared as is.` : ""}</p></footer>
 <script>${SCRIPT}</script>
 </body>
 </html>`;
 }
 
-const overview = render(readFileSync(join(HERE, "overview.md"), "utf8"));
+const home = forRepo(readFileSync(join(HERE, "home.html"), "utf8"));
 const guide = render(readFileSync(join(HERE, "..", "GUIDE.md"), "utf8"));
 
 const pages = {
   "/how-to": page({
-    title: "My own server, any chatbot · Brian Renshaw",
-    description: "How I keep my records on my own server and work with them through any chatbot, with a website to see them.",
+    title: "I talk to a chatbot. My server keeps the record. · Brian Renshaw",
+    description: "Two private dashboards, one for work and one for health, that I run from any chat app. Built without writing code, hosted free on Cloudflare.",
     path: "/how-to",
-    body: overview.html,
+    body: home,
+    cls: "page-home",
   }),
   "/how-to/build": page({
     title: "Build your own · Brian Renshaw",
@@ -112,6 +122,8 @@ const pages = {
     path: "/how-to/build",
     body: guide.html,
     toc: guide.headings,
+    cls: "page-guide",
+    label: "The guide · step by step",
   }),
 };
 
@@ -135,7 +147,7 @@ export default {
     if (path === "/") return Response.redirect(new URL("/how-to", url).toString(), 302);
     const body = PAGES[path];
     if (body) return new Response(request.method === "HEAD" ? null : body, { headers: HEADERS });
-    return new Response(PAGES["/how-to"].replace("<article>", '<article><p class="missing">That page does not exist. Here is the overview.</p>'), { status: 404, headers: HEADERS });
+    return new Response(PAGES["/how-to"].replace("<main>", '<main><div class="wrap" style="padding-top:16px"><p class="missing">That page does not exist. Here is the overview.</p></div>'), { status: 404, headers: HEADERS });
   },
 };
 `;

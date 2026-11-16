@@ -55,10 +55,16 @@ chat apps call an MCP server you add yourself a "custom connector".
 - **An AI coding tool** that can work on a project for you: Claude Code (claude.ai/code, or the
   desktop app) is what these were built with.
 - **A GitHub account**, to keep the code.
-- **A Cloudflare account.** The free plan is enough to start. Everything runs there: the server,
-  the website, the database, the sign-in.
+- **A Cloudflare account, on the free plan.** Everything runs there: the server, the website,
+  the database, the backups, the sign-in. Both of my dashboards fit inside the free allowances
+  with lots of room: 100,000 requests a day, a 5 GB database, 10 GB of storage for backups, and
+  sign-in for up to 50 people. (R2, the storage, may ask for a card on file even though it is
+  free at this size.)
 - **A chat app that can add a custom MCP connector**, on a plan that allows it.
-- **Optional: a domain name** (yours.com), moved to Cloudflare, for a nice address.
+- **Optional: a domain name.** You don't need one: every Cloudflare account gets a free
+  `workers.dev` address. If you want your own name, buy it at a registrar (I use Hover) and point
+  it at Cloudflare, which walks you through changing its nameservers. With or without a domain,
+  the site is private: Cloudflare Access puts a sign-in in front of it.
 - **Time:** a weekend for a first working version, then small additions whenever you want them.
 
 You do not need to know how to code. You need to know what you want, try what you get, and say

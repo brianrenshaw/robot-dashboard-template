@@ -1,0 +1,202 @@
+<section class="hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="label">Brian Renshaw · How I keep track of things</p>
+      <h1>I talk to a chatbot. <span class="lit">My server</span> keeps the record.</h1>
+      <p class="lede">I built two private dashboards without writing any code: one for work, one for
+      my health. Any chat app can read and write them, and a website shows me where things
+      stand.</p>
+      <div class="actions">
+        <a class="btn btn-lime" href="/how-to/build">Build your own</a>
+<!--repo-->
+        <a class="btn btn-ghost" href="#templates">Get the templates</a>
+<!--/repo-->
+      </div>
+    </div>
+    <figure class="chat" aria-label="An example conversation">
+      <div class="chat-top"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="chat-title">Any chat app</span></div>
+      <ol class="chat-log">
+        <li class="msg me">Add a task: send Sam the pricing memo by Friday</li>
+        <li class="msg bot">Added “Send Sam the pricing memo,” due Fri, with Sam on it. <span class="chip">dashboard ↗</span></li>
+        <li class="msg me">Update my health page</li>
+        <li class="msg bot">Saved Nov 13 to Nov 16: daily numbers for 4 days, 2 weigh-ins, 1 ride. <span class="chip">health ↗</span></li>
+        <li class="msg me">What are my lifts today?</li>
+        <li class="msg bot">Full Body B. Romanian deadlift, 3 × 8–10: last time 135 lb for 10, 9, 9. Stay at 135 and add a rep.</li>
+      </ol>
+      <figcaption>Made-up names and numbers. The chat is the same in Claude, ChatGPT or Grok.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap two-col">
+    <p class="label">Why it's built this way</p>
+    <div class="prose">
+      <p class="big">Chat is the fastest way to put things in. It's a terrible place to keep them.</p>
+      <p>I can say “Sam owes me the numbers by Thursday” faster than I can fill in any form. But
+      chats scroll away, every app remembers things its own way, and the one time I tried a
+      different app I started from nothing.</p>
+      <p>So the record lives in a database I own, on my own Cloudflare account. The chat app is
+      only the way in. Claude, ChatGPT and Grok all connect to the same server, get the same
+      instructions and see the same data. If I switch apps tomorrow, I lose nothing.</p>
+    </div>
+  </div>
+</section>
+
+<section class="band band-alt" id="how">
+  <div class="wrap">
+    <p class="label">How the pieces fit</p>
+    <h2>Four parts, one account.</h2>
+    <figure class="diagram">
+      <svg class="d-wide" viewBox="0 0 720 230" role="img" aria-label="You talk to any chatbot, which reaches your server through MCP. The server reads and writes your database. Your website shows the same database.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M1 1.5 9 5 1 8.5" class="d-arrowhead"/></marker>
+        </defs>
+        <rect x="236" y="14" width="300" height="202" rx="14" class="d-group"/>
+        <text x="252" y="36" class="d-caps">MY CLOUDFLARE ACCOUNT</text>
+        <rect x="8" y="50" width="176" height="64" rx="10" class="d-box d-accent"/>
+        <text x="24" y="76" class="d-title">Any chatbot</text>
+        <text x="24" y="96" class="d-sub">Claude, ChatGPT, Grok</text>
+        <rect x="8" y="140" width="176" height="64" rx="10" class="d-box"/>
+        <text x="24" y="166" class="d-title">My website</text>
+        <text x="24" y="186" class="d-sub">where I look</text>
+        <rect x="256" y="50" width="150" height="64" rx="10" class="d-box d-accent"/>
+        <text x="270" y="76" class="d-title">MCP server</text>
+        <text x="270" y="96" class="d-sub">the tools and the rules</text>
+        <rect x="256" y="140" width="150" height="64" rx="10" class="d-box"/>
+        <text x="270" y="166" class="d-title">Web server</text>
+        <text x="270" y="186" class="d-sub">the dashboard</text>
+        <rect x="430" y="94" width="92" height="64" rx="10" class="d-box"/>
+        <text x="444" y="120" class="d-title">Database</text>
+        <text x="444" y="140" class="d-sub">the record</text>
+        <rect x="566" y="50" width="146" height="64" rx="10" class="d-box"/>
+        <text x="580" y="76" class="d-title">GitHub</text>
+        <text x="580" y="96" class="d-sub">the code</text>
+        <line x1="184" y1="82" x2="253" y2="82" class="d-line" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+        <text x="219" y="74" class="d-label" text-anchor="middle">MCP</text>
+        <line x1="184" y1="172" x2="253" y2="172" class="d-line" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
+        <path d="M406 82 H476 V91" class="d-line" marker-end="url(#arrow)"/>
+        <path d="M406 172 H476 V161" class="d-line" marker-end="url(#arrow)"/>
+        <line x1="566" y1="82" x2="539" y2="82" class="d-line d-dash" marker-end="url(#arrow)"/>
+        <text x="639" y="134" class="d-label" text-anchor="middle">a push deploys</text>
+        <text x="639" y="150" class="d-label" text-anchor="middle">both servers</text>
+      </svg>
+      <svg class="d-narrow" viewBox="0 0 360 330" role="img" aria-label="You talk to any chatbot, which reaches your server through MCP. The server reads and writes your database. Your website shows the same database.">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M1 1.5 9 5 1 8.5" class="d-arrowhead"/></marker>
+        </defs>
+        <rect x="4" y="4" width="166" height="58" rx="10" class="d-box d-accent"/>
+        <text x="18" y="28" class="d-title">Any chatbot</text>
+        <text x="18" y="47" class="d-sub">Claude, ChatGPT, Grok</text>
+        <rect x="190" y="4" width="166" height="58" rx="10" class="d-box"/>
+        <text x="204" y="28" class="d-title">My website</text>
+        <text x="204" y="47" class="d-sub">where I look</text>
+        <rect x="4" y="96" width="352" height="194" rx="14" class="d-group"/>
+        <text x="342" y="116" class="d-caps" text-anchor="end">MY CLOUDFLARE ACCOUNT</text>
+        <rect x="18" y="128" width="148" height="58" rx="10" class="d-box d-accent"/>
+        <text x="32" y="152" class="d-title">MCP server</text>
+        <text x="32" y="171" class="d-sub">the tools and the rules</text>
+        <rect x="194" y="128" width="148" height="58" rx="10" class="d-box"/>
+        <text x="208" y="152" class="d-title">Web server</text>
+        <text x="208" y="171" class="d-sub">the dashboard</text>
+        <rect x="106" y="218" width="148" height="58" rx="10" class="d-box"/>
+        <text x="120" y="242" class="d-title">Database</text>
+        <text x="120" y="261" class="d-sub">the record</text>
+        <line x1="87" y1="62" x2="87" y2="125" class="d-line" marker-end="url(#arrow2)" marker-start="url(#arrow2)"/>
+        <text x="95" y="84" class="d-label">MCP</text>
+        <line x1="273" y1="62" x2="273" y2="125" class="d-line" marker-end="url(#arrow2)" marker-start="url(#arrow2)"/>
+        <path d="M92 186 V247 H103" class="d-line" marker-end="url(#arrow2)"/>
+        <path d="M268 186 V247 H257" class="d-line" marker-end="url(#arrow2)"/>
+        <text x="180" y="318" class="d-label" text-anchor="middle">GitHub holds the code; a push deploys both servers</text>
+      </svg>
+    </figure>
+    <div class="grid4">
+      <div class="cell"><p class="cell-k">The database</p><p>Cloudflare D1, which is SQLite. Plain tables, so “who am I waiting on?” has an exact answer.</p></div>
+      <div class="cell"><p class="cell-k">The MCP server</p><p>The chatbot's way in: a short list of tools and the standing instructions. The rules live here, not in any app.</p></div>
+      <div class="cell"><p class="cell-k">The website</p><p>Where I look. Charts, lists, what's next. It has no AI in it.</p></div>
+      <div class="cell"><p class="cell-k">The sign-in</p><p>Cloudflare Access. Only my email gets a login code, for the site and for every chat app I connect.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="templates">
+  <div class="wrap">
+    <p class="label">What I've built so far</p>
+    <h2>Two dashboards. Same bones.</h2>
+    <div class="cards">
+      <article class="card">
+        <p class="card-tag">Work</p>
+        <h3>The project dashboard</h3>
+        <p>Tasks, who I'm waiting on, what to bring to each 1:1, and a week of time blocks I plan
+        on a board. When I ask, my chatbot reads my sent mail and meeting notes and suggests tasks.
+        I say yes or no.</p>
+<!--repo-->
+        <a class="card-link" href="https://github.com/brianrenshaw/robot-dashboard-template" rel="noopener">Template on GitHub ↗</a>
+<!--/repo-->
+      </article>
+      <article class="card">
+        <p class="card-tag">Health</p>
+        <h3>The health dashboard</h3>
+        <p>Numbers from Apple Health on my phone, food against my targets, my lifting program and
+        what to lift today, and the week's weather for picking bike days. Its coach answers from
+        sources I chose, with the page or the link.</p>
+<!--repo-->
+        <a class="card-link" href="https://github.com/brianrenshaw/robot-health-template" rel="noopener">Template on GitHub ↗</a>
+<!--/repo-->
+      </article>
+    </div>
+    <p class="note">The two share nothing: separate code, databases, sign-ins and backups.</p>
+  </div>
+</section>
+
+<section class="band band-ink" id="cost">
+  <div class="wrap">
+    <p class="label">What it costs</p>
+    <div class="cost-head">
+      <p class="price">$0<span>/month</span></p>
+      <p class="cost-lede">Both dashboards run on Cloudflare's free plan, with room to spare. A personal
+      project uses a sliver of what it allows.</p>
+    </div>
+    <div class="grid4 stats">
+      <div class="cell"><p class="stat">100,000</p><p class="cell-k">requests a day</p><p>The two servers (Workers).</p></div>
+      <div class="cell"><p class="stat">5 GB</p><p class="cell-k">of database</p><p>D1, with 5 million rows read and 100,000 written a day.</p></div>
+      <div class="cell"><p class="stat">10 GB</p><p class="cell-k">of storage</p><p>R2, for the nightly backups.</p></div>
+      <div class="cell"><p class="stat">50</p><p class="cell-k">people can sign in</p><p>Access. I only need one.</p></div>
+    </div>
+    <div class="two-col cost-more">
+      <div>
+        <h3>Why it's free</h3>
+        <p>Cloudflare already runs a huge network for its paying customers. A Worker doesn't get a
+        server that sits idle waiting for you. It starts when a request comes in and is done a few
+        milliseconds later, so a hobby project costs them close to nothing. It's also a bet: people
+        who try it on side projects bring it to work later.</p>
+      </div>
+      <div>
+        <h3>You don't need a domain</h3>
+        <p>Every account gets a free address ending in <code>workers.dev</code>, and it works fine.
+        If you want your own name, I'd buy it at <a href="https://www.hover.com" rel="noopener">Hover</a>
+        and point it at Cloudflare. Either way it stays private: Cloudflare Access puts a sign-in in
+        front, and only your email gets the code.</p>
+      </div>
+    </div>
+    <p class="fine">Limits from Cloudflare's docs, November 2026. R2 may ask for a card on file even on the free plan.</p>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="wrap cta-grid">
+    <div>
+      <h2>Build your own.</h2>
+      <p>You don't write code. You need an AI coding tool, a free Cloudflare account, and a clear idea
+      of what you want to keep track of. The guide goes step by step, with what to say to your AI at
+      each one.</p>
+    </div>
+    <div class="cta-actions">
+      <a class="btn btn-ink" href="/how-to/build">Read the guide →</a>
+<!--repo-->
+      <a class="btn btn-line" href="https://github.com/brianrenshaw/robot-dashboard-template" rel="noopener">Work template</a>
+      <a class="btn btn-line" href="https://github.com/brianrenshaw/robot-health-template" rel="noopener">Health template</a>
+<!--/repo-->
+    </div>
+  </div>
+</section>
