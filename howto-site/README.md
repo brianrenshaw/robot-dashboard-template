@@ -8,8 +8,8 @@ your own dashboard, delete this folder.
 - `build.mjs` turns them into one small Cloudflare Worker, `dist/worker.js` (plain HTML with the
   styles inline; nothing loaded from other sites). `dist/preview/` has the same pages as files,
   to look at locally.
-- `wrangler.jsonc` sends only `briandrenshaw.com/how-to*` (and `www.`) to the Worker. The rest of
-  the domain is untouched.
+- `wrangler.jsonc` sends all of `briandrenshaw.com` and `www.briandrenshaw.com` to the Worker; the
+  front page redirects to `/how-to`. Other names under the domain (the dashboards) are separate.
 
 To change and publish (from a session with a Cloudflare token):
 
