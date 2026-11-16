@@ -5,10 +5,10 @@ keep track of: your work, your health, your reading, your house, your side busin
 kit you install. It is the order to do things in, what to tell your AI coding tool at each
 step, and how to know each step worked.
 
-It comes from building two of these: a project dashboard (tasks, people, 1:1s, projects;
+It comes from building two of these: a project dashboard (tasks, people, 1:1s, projects<!--repo-->;
 [robot-dashboard](https://github.com/brianrenshaw/robot-dashboard) is a copy of it with made-up
-data) and a health dashboard (daily numbers from Apple
-Health, food against targets, a lifting program and coach). Neither was written by hand. Both
+data<!--/repo-->) and a health dashboard (daily numbers from Apple Health, food against targets, a
+lifting program and coach). Neither was written by hand. Both
 were described to an AI, tried, and corrected, one request at a time. That is how you will build
 yours.
 
@@ -118,8 +118,8 @@ Every new session reads it first. This is the single most useful habit in this g
 
 **Say this:**
 
-> Create a new private GitHub repository for this project, using the same structure as
-> github.com/brianrenshaw/robot-dashboard: two Cloudflare Workers (one for the website, one for
+> Create a new private GitHub repository for this project, using <!--repo-->the same structure as
+> github.com/brianrenshaw/robot-dashboard:<!--/repo--><!--norepo: this structure:--> two Cloudflare Workers (one for the website, one for
 > the MCP server) sharing one D1 database and one shared code package that holds every database
 > query and rule. Start a CLAUDE.md that explains what this is and why (from BRIEF.md), and these
 > rules:
@@ -325,6 +325,7 @@ Now use it, and change it as you go. Some patterns that worked:
 - **Keep private data out of GitHub.** Code in GitHub; data and backups in your Cloudflare
   account.
 
+<!--repo-->
 ## Where to look in the template
 
 In [robot-dashboard](https://github.com/brianrenshaw/robot-dashboard) on GitHub:
@@ -333,3 +334,4 @@ In [robot-dashboard](https://github.com/brianrenshaw/robot-dashboard) on GitHub:
 - [SETUP.md](SETUP.md): every step to run this exact project as your own.
 - [CLAUDE.md](CLAUDE.md): how it is built and why, decision by decision. Point your AI at it when
   you want "do it the way they did".
+<!--/repo-->
