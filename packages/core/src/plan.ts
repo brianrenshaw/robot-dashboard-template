@@ -9,8 +9,9 @@
 //                    week?": late and due first, then meetings, then what he has waited on
 //                    for a while, then his tasks with no date as optional extras.
 //
-// The dashboard itself shows only tasks with a due date; he plans through the chatbot. Tasks
-// hidden until a later day are in neither answer.
+// (peopleComingUp fed the old People card. The dashboard now works its lists out in
+// apps/web/src/lib/ahead.ts; this is still what workPlan and the morning brief use.)
+// Tasks hidden until a later day are in neither answer.
 
 import type { Db } from "./db";
 import { listCalendarEvents, type CalendarEvent } from "./calsync";

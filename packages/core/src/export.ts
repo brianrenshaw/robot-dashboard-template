@@ -3,7 +3,7 @@
 // and the iCalendar feed. All of them start from exportAll().
 
 import type { Db } from "./db";
-import type { AgendaItem, Digest, Entry, Link, OneOnOne, Person, Project, QueueItem, Run, Task } from "./types";
+import type { AgendaItem, DailyLog, Digest, Entry, Link, OneOnOne, Person, Project, QueueItem, Run, Task } from "./types";
 import { DEFAULT_TZ, nowIso } from "./util";
 
 export const EXPORT_TABLES = [
@@ -18,6 +18,7 @@ export const EXPORT_TABLES = [
   "tags",
   "project_tags",
   "digests",
+  "daily_logs",
   "settings",
   "queue_items",
   "runs",
@@ -39,6 +40,7 @@ export interface ExportData {
     tags: { id: string; name: string; created_at: string }[];
     project_tags: { project_id: string; tag_id: string }[];
     digests: Digest[];
+    daily_logs: DailyLog[];
     settings: { key: string; value: string }[];
     queue_items: QueueItem[];
     runs: Run[];
@@ -129,6 +131,19 @@ export function snapshotFiles(data: ExportData, tz: string = DEFAULT_TZ): Record
   lines.push("## People", "");
   for (const p of t.people.filter((x) => !x.archived_at).sort((a, b) => a.name.localeCompare(b.name))) {
     lines.push(`- [${p.name}](people/${p.slug}.md)${p.role ? `, ${p.role}` : ""}${p.organization ? `, ${p.organization}` : ""}`);
+  }
+  // The daily log, newest day first, in one file.
+  const logged = (t.daily_logs ?? []).filter((l) => l.body.trim() || l.notes.trim()).sort((a, b) => b.day.localeCompare(a.day));
+  if (logged.length) {
+    lines.push("", "## Daily log", "", `[${logged.length} ${logged.length === 1 ? "day" : "days"}](log.md)`);
+    const out: string[] = ["# Daily log", "", "What the owner worked on, day by day, newest first.", ""];
+    for (const l of logged) {
+      out.push(`## ${new Date(`${l.day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" })}`, "");
+      if (l.body.trim()) out.push(l.body.trim(), "");
+      const said = l.notes.split("\n").map((x) => x.trim()).filter(Boolean);
+      if (said.length) out.push(...(l.body.trim() ? ["Also, in his words:", ""] : []), ...said.map((x) => `- ${x}`), "");
+    }
+    files["log.md"] = out.join("\n") + "\n";
   }
   files["index.md"] = lines.join("\n") + "\n";
 

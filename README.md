@@ -40,6 +40,10 @@ normally:
 - "Go through my email and update my dashboard." It reads your mail with the chatbot's own email
   connection, shows you one short list of proposed changes, and waits for your yes before it
   writes anything.
+- "Plan my week." It finds the open time between your meetings and proposes time blocks, and
+  sets them only after your yes.
+- "Add a note to my 2 o'clock: ..." or "add a task to my meeting with Sam."
+- "Log that I finished the budget draft." "What did I do on Tuesday?"
 - "That was wrong, undo it."
 
 After each change it answers in one line with a link to that spot on the dashboard.
@@ -48,15 +52,20 @@ After each change it answers in one line with a link to that spot on the dashboa
 
 Work, Personal and Side business are three desks, each with its own color.
 
-- **Dashboard**: today's meetings, what is due, and the people you meet next. Kept short on
-  purpose: it is for seeing, not for working in.
+- **Dashboard**: your planner. The morning brief and today's log, one line each; then your week
+  (or one day) as a calendar, with your meetings and the time you set aside for tasks; and under
+  it a board of rows you move tasks between: New, To do, Waiting, Back burner, To figure out.
+  Drag a task onto the calendar, or click it and type "thu 9 45m", to give it time. Click a
+  meeting to see who it is with, the tasks it carries and its note.
 - **Tasks**: every task. A task is one line; people, a due date, tags, notes and a project are
   all optional. You can type a whole one: `Send the report @sam fri #budget`.
-- **People**: for each person, what you are waiting on from them, what you owe them, and what to
-  discuss next time. A task that names someone shows up on their page by itself.
+- **People**: for each person, the list for your next 1:1 with them and everything else they are
+  on. A task that names someone shows up on their page by itself.
 - **Projects** and **Notes**: plain lists.
+- **Log**: your daily log, day by day: what you worked on, written up by your chatbot, and the
+  things you told it you did, in your words.
 
-![A person's page: waiting on them, you owe them, to discuss](docs/screenshots/person.png)
+![A person's page: the next 1:1 list and everything with them](docs/screenshots/person.png)
 
 - **Activity**: every change, by you or by an AI, with Undo.
 
@@ -76,16 +85,21 @@ records each decision with the reason. The short list:
    chatbot does that when asked, and shows its proposed changes first.
 3. **Most things are a task, not a project.** "Not everything is a project. Sometimes it's just
    a task. Actually, oftentimes it's just a task."
-4. **People work like tags.** A task can involve several people, each in one role: waiting on
-   them, owe them, discuss with them, or just mentions them.
+4. **People work like tags.** A task can involve several people. Being on it only means it
+   involves them; a person can be marked as the one you are waiting on, or the task can go on
+   the list for your next 1:1 with them. Sorted lists ("waiting on", "I owe", "to discuss") were
+   built and rejected.
 5. **The database has to answer exact questions.** One kind of record per kind of thing, people
    matched by exact name (with other spellings saved, because dictation writes "Nena" for Nina).
    The chatbot never guesses a person: if a name fits two, it asks.
 6. **Bare minimum on screen.** "This is my project manager. This is not a CRM." A ten-tile
    dashboard was "so busy", and nobody knew what "Project pulse" meant.
-7. **Never delete, log everything, always offer undo.** This is what makes it safe to let an AI
+7. **Plan with time blocks.** After Cal Newport: meetings are fixed, and the open time between
+   them gets a job on purpose. The board holds what is not on the calendar yet; nothing sorts
+   tasks into its rows but you.
+8. **Never delete, log everything, always offer undo.** This is what makes it safe to let an AI
    write to it.
-8. **Keep a notes file for the AI.** `CLAUDE.md` is why a new AI session can fix this app
+9. **Keep a notes file for the AI.** `CLAUDE.md` is why a new AI session can fix this app
    without the owner explaining it again. Have your AI keep yours current.
 
 ## Make your own

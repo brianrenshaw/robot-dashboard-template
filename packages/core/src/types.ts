@@ -24,6 +24,9 @@ export const ENTRY_SOURCES = ["web", "claude", "mcp", "import"] as const;
 export type EntrySource = (typeof ENTRY_SOURCES)[number];
 
 export const TASK_STATUSES = ["todo", "doing", "done"] as const;
+/** The rows of the planning board. A task with none is in New (or Waiting, if he is waiting on someone). */
+export const BOARD_ROWS = ["todo", "waiting", "back", "figure"] as const;
+export type BoardRow = (typeof BOARD_ROWS)[number];
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 export const LINK_KINDS = ["doc", "sheet", "slides", "folder", "email", "site", "other"] as const;
@@ -146,6 +149,10 @@ export interface Task {
   source_ref: string | null;
   /** A day (YYYY-MM-DD). Until then the task is left out of the ordinary lists. */
   hide_until: string | null;
+  /** The row he put it in on the planning board. Null: not placed yet (New). */
+  board: BoardRow | null;
+  /** The calendar event it was added for (calendar_events.id). It shows in that meeting. */
+  meeting_ref: string | null;
   /** When it started waiting on its person. */
   waiting_since: string | null;
   status: TaskStatus;
@@ -181,6 +188,22 @@ export interface Digest {
   body: string;
   created_by: string;
   created_at: string;
+}
+
+/**
+ * One day in the daily log: a short record of what the owner worked on. His chatbot writes it; he
+ * does not keep it himself. There is at most one for a day.
+ */
+export interface DailyLog {
+  /** YYYY-MM-DD in his time zone. */
+  day: string;
+  /** The day written up at its end (markdown): meetings, mail he sent, tasks added and finished. */
+  body: string;
+  /** What he told his chatbot he did, one thing per line, in the order he said it. */
+  notes: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -284,7 +307,24 @@ export interface AuditRow {
   undone_by: string | null;
 }
 
+/** Time he set aside for a task, on his dashboard. */
+export interface TimeBlock {
+  id: string;
+  task_id: string;
+  /** YYYY-MM-DD in his time zone. */
+  day: string;
+  /** Minutes after midnight. */
+  start_min: number;
+  minutes: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
 export interface Settings {
+  /** What he calls each row of the planning board. */
+  board_names: Record<BoardRow, string>;
   stale_days: number;
   due_soon_days: number;
   timezone: string;

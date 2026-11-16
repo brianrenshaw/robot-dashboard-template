@@ -47,7 +47,7 @@ function check(label: string, cond: boolean, detail?: unknown) {
 
 async function main() {
   const tools = await call("tools/list");
-  check("tools/list returns 24 tools", tools.tools.length === 24, tools.tools.length);
+  check("tools/list returns 26 tools", tools.tools.length === 26, tools.tools.length);
 
   const list = await tool("list_projects", { area: "work" });
   check("list_projects returns work projects", !list.isError && list.data.count > 0, list.data);

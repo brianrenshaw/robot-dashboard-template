@@ -11,6 +11,7 @@ import { Projects } from "./pages/Projects";
 import { ProjectPage } from "./pages/Project";
 import { People, PersonPage } from "./pages/People";
 import { Notes } from "./pages/Notes";
+import { Log } from "./pages/Log";
 import { Tasks } from "./pages/Tasks";
 import { TagPage } from "./pages/Tag";
 import { Activity } from "./pages/Activity";
@@ -22,6 +23,7 @@ import { SettingsPage } from "./pages/Settings";
 //   /work, /personal, /side            a desk
 //   /work/projects, /work/people       that desk's projects and people
 //   /projects/:id, /people/:id         one project, one person
+//   /log                               the daily log, every desk together
 //   /activity, /settings
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -35,6 +37,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/people" element={<People />} />
               <Route path="/notes" element={<Notes />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/log" element={<Log />} />
               <Route path="/tag/:name" element={<TagPage />} />
               <Route path="/view/:id" element={<Tasks />} />
               {DESKS.flatMap((d) => [

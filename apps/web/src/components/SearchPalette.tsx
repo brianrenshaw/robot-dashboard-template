@@ -1,10 +1,11 @@
-// SearchPalette.tsx: Cmd+K search across tasks, projects, people and timeline entries.
+// SearchPalette.tsx: Cmd+K search across tasks, projects, people, timeline entries and the daily log.
 // It searches the desk you are at; one tap widens it to everywhere.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSearch } from "../api";
-import { fmtTime } from "../lib/time";
+import { fmtDayLong, fmtTime } from "../lib/time";
+import { logPreview } from "./DayLog";
 import { Sigil, useScope } from "../spaces";
 import { Avatar, Icon, Panel, STATUS_LABEL } from "./ui";
 
@@ -33,6 +34,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
       ...data.projects.map((p) => ({ key: p.id, to: `/projects/${p.id}`, kind: "project" as const, p })),
       ...data.people.map((p) => ({ key: p.id, to: `/people/${p.id}`, kind: "person" as const, p })),
       ...data.entries.map((e) => ({ key: e.id, to: e.project_id ? `/projects/${e.project_id}` : e.people[0] ? `/people/${e.people[0].id}` : "/", kind: "entry" as const, e })),
+      ...(data.logs ?? []).map((l) => ({ key: `log-${l.day}`, to: `/log#${l.day}`, kind: "log" as const, l })),
     ];
   }, [data]);
 
@@ -77,7 +79,7 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
         )}
       </div>
       <div className="max-h-[56vh] overflow-y-auto p-1.5">
-        {!q && <p className="px-3 py-7 text-center text-[13px] text-faint">Tasks, people, projects and notes.</p>}
+        {!q && <p className="px-3 py-7 text-center text-[13px] text-faint">Tasks, people, projects, notes and the log.</p>}
         {q && data && !items.length && !isFetching && (
           <p className="px-3 py-7 text-center text-[13px] text-faint">
             Nothing matches “{q}”{everywhere ? "." : ` in ${space.label}.`}
@@ -120,6 +122,15 @@ export function SearchPalette({ onClose }: { onClose: () => void }) {
                   <span className="block truncate text-[12px] text-faint">
                     {it.e.project_title ?? "No project"} · {fmtTime(it.e.occurred_at)}
                   </span>
+                </span>
+              </>
+            )}
+            {it.kind === "log" && (
+              <>
+                <Icon name="digest" className="text-faint" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{logPreview(it.l)}</span>
+                  <span className="block truncate text-[12px] text-faint">Log · {fmtDayLong(it.l.day)}</span>
                 </span>
               </>
             )}

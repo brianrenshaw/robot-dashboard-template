@@ -191,6 +191,7 @@ export async function addTask(ctx: Ctx, input: unknown): Promise<Task> {
     waiting_since: data.person_id && data.side === "theirs" ? now : null,
     sort_order: (max?.m ?? -1) + 1,
     done_at: data.status === "done" ? now : null,
+    board: null,
     created_at: now,
     updated_at: now,
     deleted_at: null,

@@ -46,7 +46,7 @@ export const TABLES: Record<string, TableDef> = {
     pk: ["id"],
     soft: "deleted_at",
     columns: [
-      "id", "project_id", "area", "title", "notes", "status", "due_date", "person_id", "side", "discuss", "source_ref", "hide_until", "waiting_since", "sort_order", "done_at",
+      "id", "project_id", "area", "title", "notes", "status", "due_date", "person_id", "side", "discuss", "source_ref", "hide_until", "waiting_since", "sort_order", "done_at", "board", "meeting_ref",
       "created_at", "updated_at", "deleted_at",
     ],
   },
@@ -62,6 +62,8 @@ export const TABLES: Record<string, TableDef> = {
   task_people: { pk: ["task_id", "person_id"], join: true, columns: ["task_id", "person_id", "waiting", "one_on_one"] },
   entry_tags: { pk: ["entry_id", "tag_id"], join: true, columns: ["entry_id", "tag_id"] },
   digests: { pk: ["id"], columns: ["id", "run_date", "body", "created_by", "created_at"] },
+  time_blocks: { pk: ["id"], soft: "deleted_at", columns: ["id", "task_id", "day", "start_min", "minutes", "created_by", "created_at", "updated_at", "deleted_at"] },
+  daily_logs: { pk: ["day"], columns: ["day", "body", "notes", "created_by", "created_at", "updated_at"] },
   settings: { pk: ["key"], columns: ["key", "value"] },
   queue_items: {
     pk: ["id"],

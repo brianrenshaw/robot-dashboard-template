@@ -6,7 +6,9 @@ import { settingsUpdateSchema } from "./schemas";
 import type { Ctx, Settings } from "./types";
 import { DEFAULT_TZ, parseJson } from "./util";
 
-export const DEFAULT_SETTINGS: Settings = { stale_days: 14, due_soon_days: 7, timezone: DEFAULT_TZ, mail_account: "" };
+export const DEFAULT_SETTINGS: Settings = {
+  board_names: { todo: "To do", waiting: "Waiting to hear back", back: "Back burner", figure: "To figure out" },
+  stale_days: 14, due_soon_days: 7, timezone: DEFAULT_TZ, mail_account: "" };
 
 export async function getSettings(db: Db): Promise<Settings> {
   const rows = await db.all<{ key: string; value: string }>(`SELECT key, value FROM settings`);

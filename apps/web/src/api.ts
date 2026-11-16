@@ -30,6 +30,10 @@ import type {
   Area,
   SavedView,
   TaskFilterInput,
+  DailyLog,
+  TimeBlock,
+  TimeBlockView,
+  BoardRow,
 } from "@pd/core";
 import { useScope } from "./spaces";
 
@@ -37,7 +41,7 @@ export type {
   AuditView, HomeData, Link, PersonCard, PersonDetail, Project, ProjectCard, ProjectDetail,
   SearchResults, Settings, Task, EntryView, Run, AgendaItem, OneOnOne, OneOnOneCard, OneOnOneDetail, ProjectPulse, CalendarEvent, GoogleAccount, SecretInfo, SyncReport,
 };
-export type { SavedView };
+export type { SavedView, DailyLog, TimeBlock, TimeBlockView, BoardRow };
 /** How a task list is narrowed. See `taskFilterSchema` in packages/core/src/schemas.ts. */
 export type TaskFilter = TaskFilterInput;
 export type { Person, Area, ProjectStatus, EntryKind, TaskStatus, LinkKind, ProjectRole, PersonRef, TaskItem, TaskPerson, PersonComingUp } from "@pd/core";
@@ -221,6 +225,8 @@ export interface NewTask {
   project_id?: string | null;
   area?: Area | null;
   tags?: string[];
+  /** The calendar event it is for: it then shows in that meeting. */
+  meeting_ref?: string | null;
 }
 /** Add a task. Only the title is needed. */
 export function useAddTask() {
@@ -230,7 +236,7 @@ export function useAddTask() {
 /** Change a task from a list (check it off, reword it, retag it). The list updates at once. */
 export function useEditTask() {
   return useWrite(
-    ({ id, ...patch }: { id: string } & Partial<Pick<Task, "title" | "notes" | "status" | "due_date" | "person_id" | "side" | "project_id" | "hide_until">> & { tags?: string[]; people?: { person_id: string; waiting?: boolean; one_on_one?: boolean }[] }) => api.patch<Task>(`/api/tasks/${id}`, patch),
+    ({ id, ...patch }: { id: string } & Partial<Pick<Task, "title" | "notes" | "status" | "due_date" | "person_id" | "side" | "project_id" | "hide_until" | "board" | "sort_order">> & { tags?: string[]; people?: { person_id: string; waiting?: boolean; one_on_one?: boolean }[] }) => api.patch<Task>(`/api/tasks/${id}`, patch),
     ({ id, tags, people, ...patch }, qc) => {
       // Shown at once. People already on the task keep their names; a newly added one shows
       // when the list reloads a moment later.
@@ -242,13 +248,65 @@ export function useEditTask() {
       qc.setQueriesData<TaskItem[]>({ queryKey: ["tasks"] }, (old) =>
         Array.isArray(old) ? old.map(apply) : old,
       );
+      // The dashboard's lines come from the home data.
+      qc.setQueryData<HomeData>(["home"], (old) => (old ? { ...old, open_tasks: old.open_tasks.map(apply) } : old));
       qc.setQueriesData<TagView>({ queryKey: ["tag"] }, (old) => (old ? { ...old, tasks: old.tasks.map(apply) } : old));
     },
   );
 }
 
+// ---------- the planner: time blocks and the board's row names ----------
+
+type BlockDraft = { task_id: string; day: string; start_min: number; minutes: number; title: string; area: Area };
+const patchBlocks = (qc: ReturnType<typeof useQueryClient>, f: (b: TimeBlockView[]) => TimeBlockView[]) =>
+  qc.setQueryData<HomeData>(["home"], (old) => (old ? { ...old, blocks: f(old.blocks) } : old));
+
+/** Set aside time for a task. It shows on the week at once. */
+export function useAddBlock() {
+  return useWrite(
+    ({ title: _t, area: _a, ...v }: BlockDraft) => api.post<TimeBlock>("/api/blocks", v),
+    (v, qc) => patchBlocks(qc, (bs) => [...bs, { ...v, id: `new-${Date.now()}`, status: "todo", created_by: "", created_at: "", updated_at: "", deleted_at: null }]),
+  );
+}
+/** Move a block, or change its length. */
+export function useMoveBlock() {
+  return useWrite(
+    ({ id, ...v }: { id: string; day?: string; start_min?: number; minutes?: number }) => api.patch<TimeBlock>(`/api/blocks/${id}`, v),
+    ({ id, ...v }, qc) => patchBlocks(qc, (bs) => bs.map((b) => (b.id === id ? { ...b, ...v } : b))),
+  );
+}
+/** Take a block off the week. */
+export function useDeleteBlock() {
+  return useWrite(
+    (id: string) => api.post(`/api/blocks/${id}/delete`),
+    (id, qc) => patchBlocks(qc, (bs) => bs.filter((b) => b.id !== id)),
+  );
+}
+/** Write a meeting's note: body replaces it, add puts a line on the end. */
+export function useSaveMeetingNote() {
+  return useWrite(
+    ({ eventId, ...v }: { eventId: string; body?: string; add?: string }) => api.put<EntryView>(`/api/meetings/${encodeURIComponent(eventId)}/note`, v),
+    ({ eventId, body }, qc) =>
+      body !== undefined &&
+      qc.setQueryData<HomeData>(["home"], (old) => (old ? { ...old, meeting_notes: old.meeting_notes.map((n) => (n.source_ref === `calendar:${eventId}` ? { ...n, body } : n)) } : old)),
+  );
+}
+
+/** Change settings (the board's row names). */
+export function useSaveSettings() {
+  return useWrite(
+    (patch: Partial<Settings>) => api.patch<Settings>("/api/settings", patch),
+    (patch, qc) => qc.setQueryData<Settings>(["settings"], (old) => (old ? { ...old, ...patch } : old)),
+  );
+}
+
 export function useDeleteTask() {
   return useWrite((id: string) => api.post(`/api/tasks/${id}/delete`), undefined, () => toast({ text: "Task deleted.", undo: true }));
+}
+
+/** The daily log, newest day first. The chatbot writes it; the site only reads it. */
+export function useDailyLog(limit = 30) {
+  return useQuery({ queryKey: ["log", limit], queryFn: () => api.get<DailyLog[]>(`/api/log?limit=${limit}`), placeholderData: (prev) => prev });
 }
 
 export function useAudit(limit = 150) {

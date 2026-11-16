@@ -11,6 +11,7 @@ import { ago, fmtTime } from "../lib/time";
 
 const AUTOMATIONS: { name: string; label: string; what: string }[] = [
   { name: "morning-brief", label: "Morning brief", what: "Writes the brief at the top of the dashboard from your calendar, due dates and what is waiting." },
+  { name: "daily-log", label: "Daily log", what: "At the end of the day, writes up your meetings, the mail you sent and your tasks into the Log, then asks what else you worked on." },
 ];
 
 function Group({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
@@ -58,7 +59,7 @@ export function SettingsPage() {
           <OmniFocusRow />
         </Group>
 
-        <Group title="Automations" hint="A scheduled Claude task that runs on your Claude subscription.">
+        <Group title="Automations" hint="Scheduled Claude tasks that run on your Claude subscription.">
           {AUTOMATIONS.map((a) => {
             const run = runs.find((r) => r.name === a.name);
             return (

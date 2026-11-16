@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 > **This is a starter copy.** It was built by one person, with an AI doing all the coding, and
-> then cleaned up to share. Read these notes before changing anything.
+> then cleaned up to share (last refreshed 2026-11-16). Read these notes before changing anything.
 >
 > - **The idea, in one line:** the owner works from their chatbot, which reads and writes one
 >   database that is the canonical record; the website is a dashboard for looking at that record
@@ -53,6 +53,8 @@ Three things follow, and most of his corrections have been one of these:
    It does not read or send mail and does not pull meeting notes. He tried timers that checked
    Gmail and Granola and had them taken off as "too convoluted". That code is deleted; do not
    rebuild it unless he asks. He also rejected paying for a separate Claude API key.
+   (The daily log, below, keeps to this: his chatbot reads his sent mail and meeting notes with
+   its own connectors and writes the result here. The site still reads neither.)
 
 OmniFocus is still his personal task manager. This is the shared picture: what is between him
 and other people, and what has a date.
@@ -92,7 +94,44 @@ and other people, and what has a date.
 - **A project** is only a name for something with several tasks. Its page is its tasks and its
   notes.
 - **Notes** (`entries`: note, email, meeting, call, decision) are filed by the chatbot, on
-  people and projects. He does not write them on the site.
+  people and projects. The one place he writes a note on the site is a meeting (below).
+- **A meeting's tasks and note** (migration 0017, `packages/core/src/meetings.ts`, asked for
+  2026-11-16). `tasks.meeting_ref` ties a task to a calendar event (`calendar_events.id`, the
+  account plus Google's event id, stable across syncs); the task shows in that meeting and is
+  tagged with the meeting's people (and, for a 1:1, put on that person's 1:1 list). A
+  meeting's note is one ordinary entry, kind `meeting`, `source_ref` `calendar:<event id>`,
+  filed with the meeting's people and dated at its start, so it shows on their pages, in
+  Notes and in that day's log. He adds to it over time; it is not one note per thought.
+- **The daily log** (`daily_logs`, one row per day) is a casual record of what he worked on.
+  He asked for it on 2026-11-14 and was clear about its weight: "I don't want it to be too
+  intense... I'm not going to keep it throughout the day. It would just be a reflection on some
+  things that I worked on, very casual." So his chatbot keeps it, and it has two plain fields:
+  - `body`: the day written up at its end (markdown): the meetings he had and who with, the
+    mail he sent, the tasks he finished and added. Saving it again replaces it.
+  - `notes`: things he said he did ("log that I finished the budget draft"), one per line, in
+    his words. Only ever added to; writing the day up never touches them.
+  He adds to it whenever he likes, for any earlier day too ("on Friday I updated Dr. Ross
+  about..."). When he gives the detail of a conversation, the log gets one line and the detail
+  goes on the person's page as a note (`add_entry`), dated that day; `dayFacts` then lists it
+  under that day's notes.
+  The log only records. It belongs to no desk, and nothing in it adds or finishes a task.
+  (The end-of-day routine that writes it finishes by proposing tasks from the day's sent mail,
+  for him to say yes or no to. That is the routine, not the log.)
+- **The planning board** (`tasks.board`, migration 0016). He plans after Cal Newport: a board he
+  moves things between, and time blocks (below). A task's `board` is the row he put it in:
+  `todo`, `waiting` (to hear back), `back` (back burner), `figure` (to figure out). NULL means
+  he has not placed it: it waits in **New**, the board's first row ("stuff should default in
+  there unless it's explicitly waiting to hear back"; it was a side drawer until he asked for
+  it to be a row like the others, 2026-11-16), except that a task with someone marked
+  `waiting` on it shows in Waiting by itself. The order within a row is `sort_order` (a
+  fraction between neighbours, so a drop is one write). He renames rows on the board; the
+  names are the `board_names` setting. **Rows are his to fill.** Nothing sorts tasks into them
+  but him (or the chatbot when he says so); a guessed "This week" row was the first thing he
+  questioned.
+- **Time blocks** (`time_blocks`): time he set aside for a task: a day, a start in minutes after
+  midnight, a length. A task can have several. They live on the dashboard only; the site still
+  never writes his Google Calendar (rule 8); his chatbot copies blocks there when he asks. A calendar event named after a project ("Work on
+  Pricing Review") counts as his own block for that project's tasks.
 - **Three desks**: work, personal, side business (`area`). A task on a project takes the
   project's desk.
 
@@ -137,35 +176,33 @@ packages/core/src/            all data access: tasks.ts (tasks and the people on
                               views.ts (lists, the filter engine, search, the home data),
                               plan.ts (people by next meeting; the "what to work on" answer),
                               people.ts, projects.ts, entries.ts, tags.ts, perspectives.ts
-                              (saved views), oneonones.ts, audit.ts, rows.ts (table registry),
+                              (saved views), daylog.ts (the daily log), blocks.ts (time
+                              blocks), oneonones.ts, audit.ts,
+                              rows.ts (table registry),
                               runs.ts, omnifocus.ts, export.ts, and the calendar: connections.ts,
                               google.ts (the only code that calls Google), calsync.ts, sync.ts
 packages/core/test/           Vitest tests (node:sqlite in memory with the real migrations)
 apps/web/src/                 React app: api.ts, spaces.tsx (the three desks), styles.css,
-                              lib/ (desk.ts, time.ts, quickadd.ts), components/, pages/
+                              lib/ (plan.ts, desk.ts, time.ts, quickadd.ts), components/
+                              (Planner.tsx is the dashboard's planner), pages/
 workers/app/                  main Worker (src/index.ts: routes, Google sign-in pages, the timer)
 workers/mcp/                  MCP Worker (src/index.ts auth and routing, src/authorize.ts OAuth
                               consent page, src/tools.ts every tool and the standing instructions)
 scripts/                      seed.ts, export-snapshot.ts, embed-web.ts, mcp-smoke.ts, oauth-smoke.ts
-docs/automations/             the one scheduled Claude task (the morning brief) and its prompt
-starter/, scripts/make-starter.mjs   the public starter copy others build from (see "The shareable starter")
+docs/automations/             the two scheduled Claude tasks (the morning brief, the daily
+                              log) and their prompts
 snapshot/, backups/           nightly markdown snapshot and SQL dumps, committed by the backup job
 .github/workflows/            deploy.yml (push to main), backup.yml (nightly)
 ```
 
-## The shareable starter
+## This copy and the original
 
-The owner shares this project as a model for other people to build their own (asked 2026-11-14).
-The public copy is never edited by hand and never made from this repo's history. It is written
-by `node scripts/make-starter.mjs <folder outside the repo>`, which copies the tracked files
-without `backups/` and `snapshot/`, swaps real names, the workplace, the time zone and the
-account ids for made-up ones, lays `starter/files/` over the top (public README, SETUP.md,
-LICENSE, workflows that do nothing until set up, and a backup that refuses to run in a public
-repository), and then fails if anything on its forbidden list is still in the copy.
-**When a real name, project title or account detail is added to code, tests or docs, add it to
-`transform`, `NAMES` and `FORBIDDEN` in that script.** After generating, run
-`npm ci && npm run typecheck && npm test && npm run lint` in the copy: the name swaps must not
-break the tests. `starter/` and the script hold real names and are never copied.
+This repository is a copy of the first owner's own dashboard with every real name, workplace,
+address and account id swapped for a made-up one. It is refreshed from the original now and
+then (last on 2026-11-16, which added the planner, the daily log and a meeting's tasks and
+note). Once you make it your own, it is yours: nothing flows into it from the original unless
+you pull it in. The same owner also keeps a health dashboard built the same way; a template of
+it is shared separately.
 
 ## Rules
 
@@ -185,6 +222,7 @@ break the tests. `starter/` and the script hold real names and are never copied.
 7. **Keep the chatbot's tools few and their descriptions exact.** Every tool description in
    `workers/mcp/src/tools.ts` says when to use it. Before adding a tool, see whether an existing
    one can answer; 37 look-alike tools were cut to 24 because a chatbot picks worse among many.
+   (There are 26 now: the daily log added one to read and one to write.)
 8. **The site never sends email and does not read mail.** It reads Google Calendar only, with
    one Google permission: `calendar.readonly` (`GOOGLE_SCOPES` in `packages/core/src/google.ts`).
    Do not add a scope, and do not call an endpoint that changes a calendar or touches mail.
@@ -210,8 +248,13 @@ break the tests. `starter/` and the script hold real names and are never copied.
 | How a person is found by name | `resolvePerson` and `aliasesOf` in `views.ts`; `peopleNamedIn` in `tasks.ts` |
 | Which tasks a list shows, or a new way to filter | `taskFilterSchema` in `schemas.ts`; `filterConditions` and `listTasks` in `views.ts` (with a test); a control in the filter bar in `pages/Tasks.tsx`; `filterFields` in `tools.ts` |
 | Search | `search()` in `packages/core/src/views.ts` (the only search entry point) |
-| What a dashboard card shows | `apps/web/src/pages/Dashboard.tsx`; the lists come from `lib/desk.ts` |
-| Who shows on the dashboard's People card, and in what order | `peopleComingUp` in `packages/core/src/plan.ts`; which people a meeting is "with" is decided in `storeCalendarEvents` (`calsync.ts`) |
+| The dashboard's planner (the week, the board and its New row, the panel that asks when) | `components/Planner.tsx`; the `.plan-*` rules in `styles.css`; it reads `open_tasks`, `calendar`, `blocks` and `week_start` from the home data (`getHome` in `views.ts`) |
+| Which row a task is in, open times, what "thu 9 45m" means, overlaps on a day | `apps/web/src/lib/plan.ts` (with tests beside it) |
+| Time blocks: what they hold, how they are saved | migration 0016; `TimeBlock` in `types.ts`; `timeBlockSchema`; `packages/core/src/blocks.ts` (with tests in `test/board.test.ts`); routes under `/api/blocks`; `useAddBlock` / `useMoveBlock` / `useDeleteBlock` in `api.ts`; `block_time` / `clear_blocks` on `update_task` and `blocks` in `list_calendar` (`tools.ts`) |
+| The board's rows, or their names | `BOARD_ROWS` in `types.ts`; `board` in `taskUpdateSchema`; `board_names` in `Settings` and `DEFAULT_SETTINGS`; `rowOf` in `lib/plan.ts`; `board_row` on `update_task` |
+| A meeting's tasks and note (what the panel shows, how they are saved) | `packages/core/src/meetings.ts` (with tests in `test/meetings.test.ts`); `meeting_ref` on tasks (migration 0017); `PUT /api/meetings/:id/note`; `useSaveMeetingNote` in `api.ts`; `MeetingPanel` in `components/Planner.tsx`; `meeting_id` on `add_task` and `add_entry`, and `id` in `list_calendar` (`tools.ts`) |
+| Which people a meeting is "with" | `storeCalendarEvents` (`calsync.ts`); `listCalendarEventPeople` hands it to the dashboard |
+| How the chatbot records a promise, a request or a date, and what it looks for in his mail | the "Three things he loses track of" and "go through my email" parts of `INSTRUCTIONS` in `tools.ts`; step 8 of `docs/automations/daily-log.md` |
 | What can be typed in the add line | `apps/web/src/lib/quickadd.ts` (with a test beside it) |
 | Saved views | `perspectives.ts`; routes under `/api/views`; the views row and filter bar in `pages/Tasks.tsx` |
 | How tags work, or what can be tagged | `packages/core/src/tags.ts`; a new taggable thing needs a join table like `task_tags` |
@@ -223,6 +266,10 @@ break the tests. `starter/` and the script hold real names and are never copied.
 | A fourth desk (area) | new migration for the CHECK constraints; `AREAS` in `types.ts`; `SPACES` and `Sigil` in `spaces.tsx`; `--space-*` and `--paper-*` in `styles.css`; a route in `main.tsx` |
 | What is read from an OmniFocus export | `packages/core/src/omnifocus.ts` (with a test) |
 | The morning brief | its prompt in `docs/automations/`, then update the scheduled task to match (it keeps its own copy) |
+| What the daily log holds, or how it is written | `packages/core/src/daylog.ts` (`saveDailyLog`, with tests in `test/daylog.test.ts`); a new field needs a migration, `DailyLog` in `types.ts`, `dailyLogSaveSchema`, `rows.ts`, and `get_daily_log` / `save_daily_log` in `tools.ts` |
+| What the dashboard itself knows about a day (meetings, tasks added and finished) | `dayFacts` in `packages/core/src/daylog.ts` (with a test) |
+| How the end-of-day log is gathered and worded | the "His daily log" part of `INSTRUCTIONS` in `tools.ts`, and the Claude Duet prompt in `docs/automations/daily-log.md` (Duet keeps its own copy: give the owner the new text). Keep the two in step |
+| How a day of the log looks | `components/DayLog.tsx` (used by `pages/Log.tsx` and "Today's log" on the dashboard) |
 
 ## The chatbot
 
@@ -231,16 +278,35 @@ This is the face that matters most. Three parts, all in `workers/mcp/src/tools.t
 - **Standing instructions** (`INSTRUCTIONS`): sent to every chat when it connects. They say the
   dashboard is canonical and is read first; which tool answers which kind of question; to
   search before adding; to tag every person a task involves and set a due date when he gives
-  timing; that a 1:1 list only gets what he asks to put on it; never to guess a person; never to offer hidden tasks; to answer every change with one
+  timing; how he plans his time (time blocking after Cal Newport, asked for 2026-11-15: weekly and daily plans, thinking work in the longest early stretch, small things batched, slack left, blocks set on his dashboard with update_task only after his yes, and copied to his Google Calendar only when he asks, by the chatbot with its own calendar connection: never twice, moving an event when its block moved, touching no other event); how to record the three things he loses track of, without naming them to him (he
+  told someone he would do it: his task with the person on it; he asked for it: waiting on
+  them; a date to be ready for: a due date); that a 1:1 list only gets what he asks to put on it; never to guess a person; never to offer hidden tasks; to answer every change with one
   line; and the routine for "go through my email and update my dashboard" (read mail with the
-  chatbot's own connection, propose one list, wait for his yes, write with `source_ref`
-  `gmail:<thread id>` so a second run adds nothing twice).
-- **24 tools.** Reading: `what_to_work_on`, `search`, `list_tasks`, `get_person` (also the
+  chatbot's own connection, his SENT mail above all, looking only for what he said he would
+  do, what he asked for, and dates; propose one list, wait for his yes, write with `source_ref`
+  `gmail:<thread id>` so a second run adds nothing twice). "Adding the emails as tasks is
+  definitely important" (2026-11-15). They end with the daily log:
+  "log that I ..." adds a line, "what did I do Tuesday" reads it back, and "log my day" is a
+  routine (read the day from the dashboard, read his sent mail and Granola notes with the
+  chatbot's own connections, write the day up, file a meeting note for each 1:1 that has
+  notes, ask "anything else you worked on today?", then propose the promises, requests and
+  dates found in today's sent mail and wait for his yes). Writing the log never changes a
+  task; that last step is the only place tasks change.
+- **A meeting's tasks and note**: `list_calendar` gives each meeting's `id`; `add_task` and
+  `add_entry` take `meeting_id`. A task for a meeting with no people named takes the meeting's
+  people, never a guess from its wording ("Send Aaron..." once tagged the wrong Aaron).
+- **The board and time blocks** go through tools that already existed: `update_task` takes
+  `board_row`, `block_time` (day, HH:MM, minutes) and `clear_blocks`; `list_calendar` returns
+  his blocks with his meetings. The instructions say to block time only after his yes, to
+  check `list_calendar` first, and never to sort tasks into rows on its own.
+- **26 tools.** Reading: `what_to_work_on`, `search`, `list_tasks`, `get_person` (also the
   meeting-prep answer), `get_project`, `list_projects`, `list_tags`, `list_calendar`,
-  `whats_changed`. Writing: `add_task`, `update_task`, `complete_task`, `delete_task`, `create_person`,
-  `update_person`, `create_project`, `update_project`, `link_person_to_project`, `add_entry`
-  (a note), `add_link`, `undo_last`. For the scheduled morning brief: `morning_brief_data`,
-  `save_digest`, `log_run` (it also calls `get_person`).
+  `whats_changed`, `get_daily_log`. Writing: `add_task`, `update_task`, `complete_task`,
+  `delete_task`, `create_person`, `update_person`, `create_project`, `update_project`,
+  `link_person_to_project`, `add_entry` (a note), `add_link`, `save_daily_log`, `undo_last`.
+  For the scheduled morning brief: `morning_brief_data`, `save_digest`, `log_run` (it also
+  calls `get_person`). The scheduled daily log calls `get_daily_log`, `save_daily_log`,
+  `add_entry` and `log_run`.
 - **Receipts.** Every write returns `receipt` (one plain line: what was done, to whom, when
   due) and `url` (that spot on the dashboard), for the chatbot to pass on.
 
@@ -252,24 +318,51 @@ new chat to see changes.
 
 ## How the interface is put together
 
-- **The dashboard is for looking** (`pages/Dashboard.tsx`; the same page serves `/` and each
-  desk). Top to bottom, and nothing else:
-  1. **Today's meetings**: a plain card with what is on now or next and a bar of the day, while a
-     meeting is on or ahead today. Once the day is clear, one line of small text naming the
-     next meeting. Never a block of color: that "automatically draws my eyes" to nothing.
-  2. The morning brief, one line until opened.
-  3. **Due** (the wide card): **only tasks that have a due date** (and projects that have one),
-     soonest first, through the next two weeks, to check off. "I don't want tasks showing up on
-     my dashboard unless there is something I have set as a due date." Nothing hidden until
-     later shows. There is no line to add a task here.
-     Beside it, **People**: the people he meets next, in the order of his next meeting with each
-     (any calendar meeting, not only a 1:1). A row says when and what, and at most one word: "1:1
-     list" when he has put things on the list for their next 1:1, else "Waiting on". No counts.
-     People with something on their 1:1 list or something he is waiting on, and no meeting in
-     sight, come last.
-  4. **Next two weeks**: one row of fourteen days. Pick a day to see it.
-  Do not add cards. A "Tags and projects" card and a "Needs you" queue were here and he had
-  them removed.
+- **The dashboard is his planner** (`pages/Dashboard.tsx`, then `components/Planner.tsx`; the
+  same page serves `/` and each desk, and a desk shows only its own tasks, meetings and blocks).
+  Built 2026-11-15 after a day of attempts he turned down (three cards, then a line of meetings,
+  then a task list beside it, twice). He asked for Cal Newport-style time blocking and "a big
+  whiteboard" of things to move around, and shaped it in a sketch before it was built. Top to
+  bottom:
+  1. The morning brief and **Today's log**, one line each until opened (as before).
+  2. **Week | Day** at the right. Week shows Monday to Friday (next week's on a
+     weekend), 8 to 5 unless something falls outside. Day shows one day, beside the board on a
+     wide screen. Clicking a day's name in the week opens that day. On a phone it opens in Day.
+  3. **The calendar**, pinned while the board scrolls under it (not on a phone, where it would
+     cover the board). **Color says whose time it is** (asked for 2026-11-16: "add some color and
+     actually think about the design"): a meeting is a tint of its desk's color with a rail of
+     it; his own time (his blocks, and a calendar event named after one of his projects) is the
+     desk color, solid, white text. Today is the date in a red circle and the red now-line,
+     nothing louder. His own name is dropped from meeting titles.
+  4. **The board**: New first, then four rows, **horizontal, each opening and closing** with
+     its arrow ("a toggle to show them"); cards wrap **four across** ("rows of four or something so it's not
+     as much scrolling"), fewer on smaller screens. "Hide board" folds it all away. **Each row
+     has its own color** (New sky, To do green, Waiting violet, Back burner amber, To figure out
+     rose): a square dot, its count in a tinted pill, and its cards' check circles. A closed row
+     is only its name and count: repeating its first titles in the heading was "ugly". Row names are renamed in place (all but
+     New). Do not move New back into a side drawer.
+  The calendar is pinned below the site's own top bar (56px), so the day names stay in view.
+  **A card** is the task's exact title (never shortened or reworded: he could not recognise a
+  shortened one), who it is with (names only, never "Greta has it": a name means involved,
+  not responsible), its project, its due date, the day and time it is blocked, and an envelope
+  when it came from an email. A circle checks it off, with Undo.
+  **Blocking time**: drag a card onto the calendar, or click it. A small panel opens beside the
+  block's preview with the time to type in one line ("thu 9 45m", "tomorrow 1:30pm 1h"), the
+  lengths 15 minutes to 2 hours, his next open times (10 minutes clear of meetings; the shown
+  day first in Day view), and the rows to move it to with one tap. The preview turns red and
+  the panel names what it runs into. Enter saves, Esc cancels, the arrow keys nudge by 15
+  minutes. A block clicked on the calendar opens the same panel to move it or take it off. A
+  task whose project already has a calendar block says "Already on your calendar" instead of
+  offering a second time ("Add another time" is there if he wants one). The panel also shows
+  where the task came from: the first line of its notes.
+  **A meeting** (gray) opens its own panel when clicked: the time, place and who it is with
+  (each a link to their page), "Open in Calendar", the tasks it carries (added for it, and for
+  a 1:1 that person's 1:1 list) to check off, a line to add a task for it, and its note, saved
+  when he clicks away. A meeting that carries tasks or a note has a small accent dot.
+  **Do not put back** the line of meetings, a list of tasks beside the calendar, labelled groups
+  ("Getting ready for", "You said you'd"), a "This week" row that guesses, the Due / People /
+  Next two weeks cards, "Tags and projects" or "Needs you". No counts other than a closed row's
+  and New's, no empty-state cards, no block of color.
 - **Tasks** (`pages/Tasks.tsx`) is the full list, dated or not: the saved views (one button
   each), a **Filter** button that unfolds the filter bar, the line to add a task, then "Yours"
   and "Waiting on". Waiting on is grouped by person, and **the person's name leads its rows**
@@ -298,6 +391,10 @@ new chat to see changes.
   one, due date when there is one. `components/Pulse.tsx` is the older row with activity and
   progress columns; it is unused while his projects carry no tasks. No kanban: he rejected it.
 - **Notes** (`pages/Notes.tsx`): what the chatbot has filed, newest first. No writing box.
+- **Log** (`pages/Log.tsx`, `/log`): the daily log for reading back, newest day first: the day
+  as written up, then "In your words" (what he said he did). A day with nothing logged is not
+  listed. No writing box and nothing to edit: he changes it by telling his chatbot. It is one
+  log for all three desks.
 - **A tag's page** (`/tag/:name`): the tasks, notes and projects with that tag.
 - **Click to edit, no edit buttons.** Titles, notes and tags use `Editable`. A task row's arrow
   opens the rest (notes, due date, hide until, project, the people on it with their two
@@ -306,7 +403,7 @@ new chat to see changes.
   `<html>`. The desk color is identity; the status colors (`--late` red, `--soon` amber, `--ok`
   green, `--wait` violet, `--idle` gray) say how things stand. Color is never decoration.
 - **A sidebar that is not always there** (`components/Sidebar.tsx`), in the manner of Things:
-  Today and Tasks; the views; People, Projects and Notes; his tags; Activity and Settings. The
+  Today and Tasks; the views; People, Projects, Notes and Log; his tags; Activity and Settings. The
   button at the top left, or `\`, slides it in. While docked, pages leave out what it shows.
 - **One request feeds every desk.** `useHome()` loads all areas once; `lib/desk.ts` filters it.
 - **One set of controls** (`components/fields.tsx`); menus open through `components/Popover.tsx`.
@@ -445,6 +542,27 @@ Rolling back code does not roll back the database; migrations only move forward.
   than updating in place. (Switching "Waiting on" or "On 1:1 list" shows at once.)
 - **A task's title can link the wrong person** when it opens with a word that is also a first
   name ("Mark the forms done"). The arrow on the task takes them off.
+- **A calendar event counts as his block for a project only when its title is the project's
+  name** (ignoring "Work on" and punctuation). One worded differently is an ordinary meeting.
+- **Blocks reach his Google Calendar only when he asks his chatbot to sync them.** "I don't
+  think I want the calendar items to go to my calendar", then "I can set things up and then ask
+  the chatbot to sync" (2026-11-16). The site still only reads the calendar and the calendar
+  feed carries due dates only. A copied block comes back with the next calendar sync; the week
+  hides it (`isCopyOfBlock` in `lib/plan.ts`: same day, start within five minutes, same title)
+  so it shows once. A block moved after a sync stays at its old calendar time until he syncs
+  again.
+- **A task he is waiting on someone for cannot be put in New**: with no row it shows in
+  Waiting. Taking the waiting mark off (the task's arrow on the Tasks page) frees it.
+- **Dragging on a phone is fiddly.** Tapping a card opens the same panel, with the rows as
+  one-tap choices, so nothing needs a drag.
+- **A card on the dashboard can be checked off and placed, not reworded.** Rewording, dating
+  and the people on it are on the Tasks page or through his chatbot.
+- **`lib/desk.ts` and `calendar_people` / `peopleComingUp` feed things the dashboard no longer
+  shows** (counts elsewhere, `what_to_work_on`). Prune them when those go.
+- **Days waited can be wrong for old items.** The count runs from `waiting_since`, which for
+  tasks loaded in bulk is the day they were loaded, not the day he asked. Many "waiting"
+  marks came from September and October meeting notes (next steps a Granola summary gave
+  someone), not from him; he said half of them were already done.
 - **A meeting counts as "with" someone only if the calendar can tell**: they are a guest whose
   email or exact name matches a person, or the title names them. Most people have no email on
   file yet.
@@ -479,10 +597,23 @@ Rolling back code does not roll back the database; migrations only move forward.
   and push `main` when he says "deploy".
 - **Google's sign-in client has to stay published**, or sign-ins expire after seven days. The
   work account may be refused if your organization's Google administrator restricts outside apps.
-- **The site cannot see the scheduled task.** It only knows when it last called `log_run`.
+- **The site cannot see the scheduled tasks.** It only knows when each last called `log_run`.
+- **The daily log runs in Claude Duet, not in a Claude Code session**, because it needs his
+  mail and Granola connectors and ends by asking him a question. No session here can see or
+  change that schedule; a change to the prompt reaches Duet only when he pastes the new text.
+- **A past day's meetings are only in its log.** The calendar copy is replaced on every sync
+  and reaches back about a day, so `dayFacts` knows meetings for today and yesterday only.
+  Tasks added and finished are known for any day.
+- **The first write to a day's log shows as two lines in Activity** ("started the log", then
+  the note or write-up). The row is made empty and then filled so that the first write can be
+  undone like any other; a row with nothing in it reads as no log.
+- **Search finds a day of the log but not the line within it**: it opens the Log page at that
+  day.
 
 ## Future ideas
 
+- Let the morning brief open with a line from yesterday's log.
+- A week of the log on one screen ("what did I do this week") for his own weekly review.
 - A proper word index for search, once the backup can handle it.
 - Recompute the lead-person summary on undo.
 - Read shared and secondary calendars, not only each account's main one.

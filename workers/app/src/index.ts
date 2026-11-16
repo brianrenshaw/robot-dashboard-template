@@ -15,7 +15,7 @@ import {
   importOmniFocus, listOneOnOnes, getOneOnOne, getTagView, listTasks, taskFilterSchema, 
   createSavedView, deleteSavedView, listSavedViews, openSavedView, updateSavedView, setOneOnOne,
   clearSecret, disconnectGoogleAccount, finishGoogleSignIn, googleKeys, googleSignInUrl,
-  listGoogleAccounts, listSecrets, runSync, saveGoogleAccount, setGoogleAccountArea, setSecret, signValue, lastAuditBy, latestRuns,
+  listGoogleAccounts, listSecrets, runSync, addTimeBlock, updateTimeBlock, deleteTimeBlock, saveMeetingNote, saveGoogleAccount, setGoogleAccountArea, setSecret, signValue, lastAuditBy, latestRuns, listDailyLogs,
   type Area, type Ctx, type Db, type EntryKind, type ProjectFilter, type ProjectStatus, type SyncEnv,
 } from "@pd/core";
 import { verifyAccess, type AccessEnv } from "@pd/core";
@@ -197,6 +197,17 @@ app.post("/api/tasks/:id/delete", async (c) => {
   return c.json({ ok: true });
 });
 
+// ---------- time blocks (the planner) ----------
+app.post("/api/blocks", async (c) => c.json(await addTimeBlock(c.var.ctx, await body(c)), 201));
+app.patch("/api/blocks/:id", async (c) => c.json(await updateTimeBlock(c.var.ctx, c.req.param("id"), await body(c))));
+app.post("/api/blocks/:id/delete", async (c) => {
+  await deleteTimeBlock(c.var.ctx, c.req.param("id"));
+  return c.json({ ok: true });
+});
+
+// ---------- a meeting's note ----------
+app.put("/api/meetings/:id/note", async (c) => c.json(await saveMeetingNote(c.var.ctx, c.req.param("id"), await body(c))));
+
 // ---------- links ----------
 app.post("/api/links", async (c) => c.json(await addLink(c.var.ctx, await body(c)), 201));
 app.patch("/api/links/:id", async (c) => c.json(await updateLink(c.var.ctx, c.req.param("id"), await body(c))));
@@ -221,6 +232,9 @@ app.post("/api/people/:id/restore", async (c) => c.json(await restorePerson(c.va
 
 // ---------- when the scheduled morning brief last ran ----------
 app.get("/api/runs", async (c) => c.json(await latestRuns(c.var.db)));
+
+// The daily log, newest day first. It is written by the chatbot; the site only shows it.
+app.get("/api/log", async (c) => c.json(await listDailyLogs(c.var.db, { limit: Number(c.req.query("limit")) || 60 })));
 
 // ---------- 1:1s ----------
 app.get("/api/one-on-ones", async (c) => c.json(await listOneOnOnes(c.var.db, areasOf(c.req.query("areas")))));
