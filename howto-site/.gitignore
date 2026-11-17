@@ -1,0 +1,3 @@
+
+# Private pages: read by build.mjs, never kept in this public repository.
+standalone/

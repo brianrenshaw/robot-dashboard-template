@@ -20,6 +20,37 @@ node build.mjs
 CLOUDFLARE_ACCOUNT_ID=<the account id> npx wrangler deploy
 ```
 
+## Adding a page
+
+Every address under the domain comes to this Worker, so a page can sit anywhere, not only under
+`/how-to`. Publishing is by hand (no workflow deploys this folder), and the site has no login and
+this repository is public, so nothing private goes on a page.
+
+- **A page in the site's look**: write it as Markdown (like the guide) or finished HTML (like the
+  overview), read it in `build.mjs` next to `home` and `guide`, and add an entry to `pages` with
+  its address, title, description, body and `cls` (`page-guide` for the dark title band, narrow
+  column and "On this page" list; `page-home` to leave the layout to the HTML). For the top menu,
+  add a line to the `nav` list in `page()`. Pictures go in `img/` as small `.webp` files, used
+  as `/how-to/img/<file>`.
+- **A private standalone page**: a finished HTML document with its own styles and script, served
+  as it is with no site header or menu, to signed-in people only. Its file goes in
+  `standalone/`, which is never committed, and its address in `STANDALONE_FILES` in `build.mjs`.
+  It is guarded twice: a Cloudflare Access application covering the address (on both
+  `briandrenshaw.com` and `www.briandrenshaw.com`) asks for a sign-in, and the Worker serves the
+  page only with a valid Access token for the application named in `ACCESS` (team domain and
+  AUD tag, which are not secrets) whose email is in `standalone/readers.json`, a list of
+  addresses kept out of GitHub. Change who can read in both places: the Access policy and that
+  file, then build and publish. The page gets the site's policy (nothing from other sites, no
+  forms) with its own inline scripts allowed by their hashes, and `noindex`. The build refuses to
+  run if the file is missing (publishing would take the page down), if `ACCESS` is not set, or if
+  the page has a `<script src>`, an outside stylesheet or an inline event handler.
+  `/school-comparison` is one: it is made in the a private repository repository by
+  `5-school-comparison/build_page.py`, so rebuild it there, copy `school-comparison.html` into
+  `standalone/` and build again.
+
+Then `node build.mjs`, open `dist/preview/`, deploy, and commit the source files (`dist/` is not
+kept). A browser may keep the old page for five minutes.
+
 **Links to GitHub are on**: both templates (robot-dashboard-template and robot-health-template)
 are public. If one goes private, build with `SHOW_REPO=0 node build.mjs` and deploy, and the
 links, the template bullets and the guide's "Where to look in the templates" are left out. The
