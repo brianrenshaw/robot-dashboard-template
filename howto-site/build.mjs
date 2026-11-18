@@ -149,6 +149,7 @@ const STANDALONE_FILES = {
   "/school-comparison": "school-comparison.html",
   "/school-comparison/summary": "school-comparison-summary.html",
   "/school-comparison/findings": "school-comparison-findings.html",
+  "/school-comparison/tldr": "school-comparison-tldr.html",
 };
 const ACCESS = { team: "jolly-dew-53f9.cloudflareaccess.com", aud: "13360554cace9cbbdb5c277f659ba89b722559e07c6388fd6c90569e88834d6c" }; // the "School comparison" Access application
 if (Object.keys(STANDALONE_FILES).length && !(ACCESS.team && ACCESS.aud)) throw new Error("Standalone pages are private: set ACCESS.team and ACCESS.aud first");
