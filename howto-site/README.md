@@ -44,6 +44,9 @@ this repository is public, so nothing private goes on a page.
   forms) with its own inline scripts allowed by their hashes, and `noindex`. The build refuses to
   run if the file is missing (publishing would take the page down), if `ACCESS` is not set, or if
   the page has a `<script src>`, an outside stylesheet or an inline event handler.
+  `/share`, `/share/summary`, `/share/findings` and `/share/compare` are link cards: public short addresses that show a
+  preview when texted and send a person on to the private page (`CARDS` in `build.mjs`; pictures in
+  `standalone/cards/`). A card carries a title and nothing from the page.
   `/school-comparison/summary` and `/school-comparison/findings` are two more, written there by
   `6-incoming-students/pages/build_pages.py`; they sit under `/school-comparison` so the same Access
   application covers them.

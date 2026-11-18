@@ -170,6 +170,27 @@ const STANDALONE = Object.fromEntries(
   }),
 );
 
+// Link cards. A private page sits behind a sign-in, so a texted link to it previews as the sign-in
+// screen. Each address here is public and does two things: a messaging app's preview fetcher gets a
+// small page of title, description and picture (the card), and a person is sent straight on to the
+// private page, where the sign-in asks who they are. A card carries a title and nothing from the
+// page. The pictures are made in the a private repository repository by
+// 6-incoming-students/pages/link_cards.py and kept in standalone/cards/, out of GitHub.
+const CARDS = {
+  "/share": { to: "/school-comparison/tldr", image: "tldr", title: "Where the college stands with its admits", description: "The short version: who comes, who leaves, and what price has to do with it. Private; sign in with your work email." },
+  "/share/summary": { to: "/school-comparison/summary", image: "summary", title: "Who the college admits, and who comes", description: "The summary, with the three admits priced at the college and 18 other schools. Private; sign in with your work email." },
+  "/share/findings": { to: "/school-comparison/findings", image: "findings", title: "Who the college admits, who comes, and three admits to price", description: "The full findings, every table. Private; sign in with your work email." },
+  "/share/compare": { to: "/school-comparison", image: "compare", title: "What it costs: the college and 18 other schools", description: "Price any student at the college and 18 other schools. Private; sign in with your work email." },
+};
+for (const [path, c] of Object.entries(CARDS)) {
+  if (!STANDALONE_FILES[c.to]) throw new Error(`${path}: a card must lead to a private page, and ${c.to} is not one`);
+  if (!existsSync(join(HERE, "standalone", "cards", c.image + ".png"))) throw new Error(`standalone/cards/${c.image}.png is missing; make it with link_cards.py`);
+}
+// Served at /share/card/<name>.png. Public on purpose: a preview fetcher is not signed in.
+const CARD_IMAGES = Object.fromEntries(
+  [...new Set(Object.values(CARDS).map((c) => c.image))].map((n) => [`/share/card/${n}.png`, readFileSync(join(HERE, "standalone", "cards", n + ".png")).toString("base64")]),
+);
+
 // Screenshots (made-up data) served by the Worker itself at /how-to/img/<file>.
 const IMAGES = Object.fromEntries(
   readdirSync(join(HERE, "img"))
@@ -183,6 +204,20 @@ const IMAGES = ${JSON.stringify(IMAGES)};
 const STANDALONE = ${JSON.stringify(STANDALONE)};
 const ACCESS = ${JSON.stringify(ACCESS)};
 const READERS = ${JSON.stringify(READERS)};
+const CARDS = ${JSON.stringify(CARDS)};
+const CARD_IMAGES = ${JSON.stringify(CARD_IMAGES)};
+// The apps that fetch a link to draw its preview. Messages on an iPhone or a Mac announces itself as the first three.
+const PREVIEWER = /facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|Discordbot|LinkedInBot|SkypeUriPreview|Applebot|iMessage|Google-PageRenderer|Embedly|redditbot|Pinterest/i;
+const attr = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+const cardPage = (origin, path, c) => \`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>\${attr(c.title)}</title>
+<meta name="robots" content="noindex, nofollow"><meta name="description" content="\${attr(c.description)}">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Private pages">
+<meta property="og:title" content="\${attr(c.title)}"><meta property="og:description" content="\${attr(c.description)}">
+<meta property="og:url" content="\${origin}\${path}"><meta property="og:image" content="\${origin}/share/card/\${c.image}.png">
+<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="\${attr(c.title)}"><meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="\${attr(c.title)}"><meta name="twitter:description" content="\${attr(c.description)}"><meta name="twitter:image" content="\${origin}/share/card/\${c.image}.png">
+</head><body><p><a href="\${c.to}">\${attr(c.title)}</a></p></body></html>\`;
 // True only for a request carrying a valid Cloudflare Access token for this application: signed
 // by the team's current key, for this audience, from this team, not expired.
 const b64url = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (s.length % 4)) % 4)), (c) => c.charCodeAt(0));
@@ -223,6 +258,16 @@ export default {
     if (IMAGES[path]) {
       const bytes = Uint8Array.from(atob(IMAGES[path]), (c) => c.charCodeAt(0));
       return new Response(request.method === "HEAD" ? null : bytes, { headers: { "Content-Type": "image/webp", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" } });
+    }
+    if (CARD_IMAGES[path]) {
+      const bytes = Uint8Array.from(atob(CARD_IMAGES[path]), (c) => c.charCodeAt(0));
+      return new Response(request.method === "HEAD" ? null : bytes, { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex" } });
+    }
+    const card = CARDS[path];
+    if (card) {
+      // A preview fetcher gets the card; a person goes on to the private page and its sign-in.
+      if (!PREVIEWER.test(request.headers.get("User-Agent") || "")) return new Response(null, { status: 302, headers: { Location: new URL(card.to, url).toString(), "Cache-Control": "no-store" } });
+      return new Response(request.method === "HEAD" ? null : cardPage(url.origin, path, card), { headers: { ...HEADERS, "Cache-Control": "public, max-age=300", "X-Robots-Tag": "noindex, nofollow" } });
     }
     const own = STANDALONE[path];
     if (own) {
