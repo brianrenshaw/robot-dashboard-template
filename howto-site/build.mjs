@@ -144,7 +144,12 @@ const CSP = cspFor([SCRIPT_HASH]);
 // their addresses asks for a sign-in, and the Worker itself serves one only with a valid Access
 // token for the application below, so a gap in the Access setting cannot expose the page. The
 // team domain and application audience are not secrets.
-const STANDALONE_FILES = { "/school-comparison": "school-comparison.html" };
+// The summary and the full findings sit under /school-comparison so the same Access application covers them.
+const STANDALONE_FILES = {
+  "/school-comparison": "school-comparison.html",
+  "/school-comparison/summary": "school-comparison-summary.html",
+  "/school-comparison/findings": "school-comparison-findings.html",
+};
 const ACCESS = { team: "jolly-dew-53f9.cloudflareaccess.com", aud: "13360554cace9cbbdb5c277f659ba89b722559e07c6388fd6c90569e88834d6c" }; // the "School comparison" Access application
 if (Object.keys(STANDALONE_FILES).length && !(ACCESS.team && ACCESS.aud)) throw new Error("Standalone pages are private: set ACCESS.team and ACCESS.aud first");
 // Who may open them: standalone/readers.json, a list of email addresses, kept out of GitHub with
@@ -238,7 +243,11 @@ for (const [path, html] of Object.entries(pages)) {
   // The preview files open from disk, so their image paths are relative.
   writeFileSync(file, html.replaceAll('src="/how-to/img/', 'src="how-to/img/'));
 }
-for (const [path, { html }] of Object.entries(STANDALONE)) writeFileSync(join(HERE, "dist", "preview", path.replace(/^\//, "") + ".html"), html);
+for (const [path, { html }] of Object.entries(STANDALONE)) {
+  const file = join(HERE, "dist", "preview", path.replace(/^\//, "") + ".html");
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, html);
+}
 mkdirSync(join(HERE, "dist", "preview", "how-to", "img"), { recursive: true });
 for (const f of readdirSync(join(HERE, "img"))) copyFileSync(join(HERE, "img", f), join(HERE, "dist", "preview", "how-to", "img", f));
 console.log(`Built ${Object.keys(pages).length} pages and ${Object.keys(STANDALONE).length} standalone into dist/worker.js (${Math.round(worker.length / 1024)} KB).`);

@@ -44,6 +44,9 @@ this repository is public, so nothing private goes on a page.
   forms) with its own inline scripts allowed by their hashes, and `noindex`. The build refuses to
   run if the file is missing (publishing would take the page down), if `ACCESS` is not set, or if
   the page has a `<script src>`, an outside stylesheet or an inline event handler.
+  `/school-comparison/summary` and `/school-comparison/findings` are two more, written there by
+  `6-incoming-students/pages/build_pages.py`; they sit under `/school-comparison` so the same Access
+  application covers them.
   `/school-comparison` is one: it is made in the a private repository repository by
   `5-school-comparison/build_page.py`, so rebuild it there, copy `school-comparison.html` into
   `standalone/` and build again.
