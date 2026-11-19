@@ -33,26 +33,25 @@ this repository is public, so nothing private goes on a page.
   add a line to the `nav` list in `page()`. Pictures go in `img/` as small `.webp` files, used
   as `/how-to/img/<file>`.
 - **A private standalone page**: a finished HTML document with its own styles and script, served
-  as it is with no site header or menu, to signed-in people only. Its file goes in
-  `standalone/`, which is never committed, and its address in `STANDALONE_FILES` in `build.mjs`.
-  It is guarded twice: a Cloudflare Access application covering the address (on both
+  as it is with no site header or menu, to signed-in people only. Everything about these pages is
+  kept out of GitHub, in `standalone/` (never committed): the page files, `private.json` (their
+  addresses, the Cloudflare Access application that guards them, and any link cards pointing at
+  them; its shape is described in `build.mjs`) and `readers.json` (the email addresses allowed to
+  open them). Each page is guarded twice: an Access application covering its address (on both
   `briandrenshaw.com` and `www.briandrenshaw.com`) asks for a sign-in, and the Worker serves the
-  page only with a valid Access token for the application named in `ACCESS` (team domain and
-  AUD tag, which are not secrets) whose email is in `standalone/readers.json`, a list of
-  addresses kept out of GitHub. Change who can read in both places: the Access policy and that
-  file, then build and publish. The page gets the site's policy (nothing from other sites, no
-  forms) with its own inline scripts allowed by their hashes, and `noindex`. The build refuses to
-  run if the file is missing (publishing would take the page down), if `ACCESS` is not set, or if
-  the page has a `<script src>`, an outside stylesheet or an inline event handler.
-  `/share`, `/share/summary`, `/share/findings` and `/share/compare` are link cards: public short addresses that show a
-  preview when texted and send a person on to the private page (`CARDS` in `build.mjs`; pictures in
-  `standalone/cards/`). A card carries a title and nothing from the page.
-  `/school-comparison/summary` and `/school-comparison/findings` are two more, written there by
-  `6-incoming-students/pages/build_pages.py`; they sit under `/school-comparison` so the same Access
-  application covers them.
-  `/school-comparison` is one: it is made in the a private repository repository by
-  `5-school-comparison/build_page.py`, so rebuild it there, copy `school-comparison.html` into
-  `standalone/` and build again.
+  page only with a valid Access token for that application whose email is in `readers.json`.
+  Change who can read in both places: the Access policy and that file, then build and publish.
+  The page gets the site's policy (nothing from other sites, no forms) with its own inline
+  scripts allowed by their hashes, and `noindex`. The build refuses to run if `private.json` or a
+  page file is missing (publishing would take the pages down), or if a page has a
+  `<script src>`, an outside stylesheet or an inline event handler.
+  A **link card** is a public short address that shows a title and picture when the link is
+  texted and sends a person on to a private page and its sign-in. It carries a title and nothing
+  from the page; its picture is in `standalone/cards/`.
+  **From a fresh session**, `standalone/` is not there. Take it out of the live Worker first
+  (the Cloudflare API's `workers/scripts/briandrenshaw-howto/content/v2` holds the page files,
+  readers and cards), and check that a build with no changes matches what is live before
+  publishing anything.
 
 Then `node build.mjs`, open `dist/preview/`, deploy, and commit the source files (`dist/` is not
 kept). A browser may keep the old page for five minutes.

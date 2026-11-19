@@ -135,26 +135,30 @@ const CSP = cspFor([SCRIPT_HASH]);
 // (nothing from other sites, no forms) with its own inline scripts allowed by their hashes; a page
 // with a <script src> or an inline event handler is refused, so the policy cannot be loosened by
 // accident. They are left out of the menu.
-//   /school-comparison  what a year at the college costs beside 17 other schools. Made in the
-//                       a private repository repository by 5-school-comparison/build_page.py; copy
-//                       its school-comparison.html into standalone/ and build again.
 //
-// Standalone pages are private. Their files sit in standalone/, which is never committed (this
-// repository is public), and they are guarded twice: a Cloudflare Access application in front of
-// their addresses asks for a sign-in, and the Worker itself serves one only with a valid Access
-// token for the application below, so a gap in the Access setting cannot expose the page. The
-// team domain and application audience are not secrets.
-// The summary and the full findings sit under /school-comparison so the same Access application covers them.
-const STANDALONE_FILES = {
-  "/school-comparison": "school-comparison.html",
-  "/school-comparison/summary": "school-comparison-summary.html",
-  "/school-comparison/findings": "school-comparison-findings.html",
-  "/school-comparison/tldr": "school-comparison-tldr.html",
-};
-const ACCESS = { team: "jolly-dew-53f9.cloudflareaccess.com", aud: "13360554cace9cbbdb5c277f659ba89b722559e07c6388fd6c90569e88834d6c" }; // the "School comparison" Access application
-if (Object.keys(STANDALONE_FILES).length && !(ACCESS.team && ACCESS.aud)) throw new Error("Standalone pages are private: set ACCESS.team and ACCESS.aud first");
-// Who may open them: standalone/readers.json, a list of email addresses, kept out of GitHub with
-// the pages. The Worker checks the signed-in email against it as well as Access's own policy.
+// Standalone pages are private, and so is everything about them: their addresses, the Cloudflare
+// Access application that guards them, who may read them and the link cards that point at them
+// all live in standalone/private.json, beside the page files, in a folder that is never committed
+// (this repository is public). Its shape:
+//   { "access": { "team": "<team>.cloudflareaccess.com", "aud": "<application audience>" },
+//     "pages": { "/an-address": "file-in-standalone.html", ... },
+//     "cards": { "/short-address": { "to": "/an-address", "image": "name", "title": "...", "description": "..." }, ... },
+//     "card_images_at": "/short/card/", "card_site_name": "..." }
+// and standalone/readers.json is the list of email addresses allowed to open the pages.
+// The pages are guarded twice: the Access application in front of their addresses asks for a
+// sign-in, and the Worker itself serves one only with a valid Access token for that application
+// whose email is a reader, so a gap in the Access setting cannot expose a page.
+//
+// The live site has private pages. Building it without them would publish a Worker that has
+// lost them, so the build refuses unless standalone/private.json is there. (Someone reusing this
+// folder for a site with no private pages sets this to false.)
+const EXPECT_PRIVATE = true;
+const PRIVATE_FILE = join(HERE, "standalone", "private.json");
+if (EXPECT_PRIVATE && !existsSync(PRIVATE_FILE)) throw new Error("standalone/private.json is missing. It is kept out of GitHub with the private pages; put it back before building, or publishing would take those pages down.");
+const PRIVATE = existsSync(PRIVATE_FILE) ? JSON.parse(readFileSync(PRIVATE_FILE, "utf8")) : {};
+const STANDALONE_FILES = PRIVATE.pages ?? {};
+const ACCESS = PRIVATE.access ?? { team: "", aud: "" };
+if (Object.keys(STANDALONE_FILES).length && !(ACCESS.team && ACCESS.aud)) throw new Error("Standalone pages are private: set access.team and access.aud in standalone/private.json");
 const READERS_FILE = join(HERE, "standalone", "readers.json");
 if (Object.keys(STANDALONE_FILES).length && !existsSync(READERS_FILE)) throw new Error("standalone/readers.json is missing: the emails allowed to open the private pages");
 const READERS = existsSync(READERS_FILE) ? JSON.parse(readFileSync(READERS_FILE, "utf8")).map((e) => String(e).trim().toLowerCase()) : [];
@@ -171,24 +175,20 @@ const STANDALONE = Object.fromEntries(
 );
 
 // Link cards. A private page sits behind a sign-in, so a texted link to it previews as the sign-in
-// screen. Each address here is public and does two things: a messaging app's preview fetcher gets a
-// small page of title, description and picture (the card), and a person is sent straight on to the
-// private page, where the sign-in asks who they are. A card carries a title and nothing from the
-// page. The pictures are made in the a private repository repository by
-// 6-incoming-students/pages/link_cards.py and kept in standalone/cards/, out of GitHub.
-const CARDS = {
-  "/share": { to: "/school-comparison/tldr", image: "tldr", title: "Where the college stands with its admits", description: "The short version: who comes, who leaves, and what price has to do with it. Private; sign in with your work email." },
-  "/share/summary": { to: "/school-comparison/summary", image: "summary", title: "Who the college admits, and who comes", description: "The summary, with the three admits priced at the college and 18 other schools. Private; sign in with your work email." },
-  "/share/findings": { to: "/school-comparison/findings", image: "findings", title: "Who the college admits, who comes, and three admits to price", description: "The full findings, every table. Private; sign in with your work email." },
-  "/share/compare": { to: "/school-comparison", image: "compare", title: "What it costs: the college and 18 other schools", description: "Price any student at the college and 18 other schools. Private; sign in with your work email." },
-};
+// screen. Each card address is public and does two things: a messaging app's preview fetcher gets
+// a small page of title, description and picture (the card), and a person is sent straight on to
+// the private page, where the sign-in asks who they are. A card carries a title and nothing from
+// the page. Its picture is standalone/cards/<image>.png, served at card_images_at + <image>.png.
+const CARDS = PRIVATE.cards ?? {};
+const CARD_AT = PRIVATE.card_images_at ?? "/card/";
+const CARD_SITE = PRIVATE.card_site_name ?? "";
 for (const [path, c] of Object.entries(CARDS)) {
   if (!STANDALONE_FILES[c.to]) throw new Error(`${path}: a card must lead to a private page, and ${c.to} is not one`);
-  if (!existsSync(join(HERE, "standalone", "cards", c.image + ".png"))) throw new Error(`standalone/cards/${c.image}.png is missing; make it with link_cards.py`);
+  if (!existsSync(join(HERE, "standalone", "cards", c.image + ".png"))) throw new Error(`standalone/cards/${c.image}.png is missing`);
 }
-// Served at /share/card/<name>.png. Public on purpose: a preview fetcher is not signed in.
+// Public on purpose: a preview fetcher is not signed in.
 const CARD_IMAGES = Object.fromEntries(
-  [...new Set(Object.values(CARDS).map((c) => c.image))].map((n) => [`/share/card/${n}.png`, readFileSync(join(HERE, "standalone", "cards", n + ".png")).toString("base64")]),
+  [...new Set(Object.values(CARDS).map((c) => c.image))].map((n) => [`${CARD_AT}${n}.png`, readFileSync(join(HERE, "standalone", "cards", n + ".png")).toString("base64")]),
 );
 
 // Screenshots (made-up data) served by the Worker itself at /how-to/img/<file>.
@@ -206,17 +206,19 @@ const ACCESS = ${JSON.stringify(ACCESS)};
 const READERS = ${JSON.stringify(READERS)};
 const CARDS = ${JSON.stringify(CARDS)};
 const CARD_IMAGES = ${JSON.stringify(CARD_IMAGES)};
+const CARD_AT = ${JSON.stringify(CARD_AT)};
+const CARD_SITE = ${JSON.stringify(CARD_SITE)};
 // The apps that fetch a link to draw its preview. Messages on an iPhone or a Mac announces itself as the first three.
 const PREVIEWER = /facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|Discordbot|LinkedInBot|SkypeUriPreview|Applebot|iMessage|Google-PageRenderer|Embedly|redditbot|Pinterest/i;
 const attr = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 const cardPage = (origin, path, c) => \`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>\${attr(c.title)}</title>
 <meta name="robots" content="noindex, nofollow"><meta name="description" content="\${attr(c.description)}">
-<meta property="og:type" content="website"><meta property="og:site_name" content="Private pages">
+<meta property="og:type" content="website"><meta property="og:site_name" content="\${attr(CARD_SITE)}">
 <meta property="og:title" content="\${attr(c.title)}"><meta property="og:description" content="\${attr(c.description)}">
-<meta property="og:url" content="\${origin}\${path}"><meta property="og:image" content="\${origin}/share/card/\${c.image}.png">
+<meta property="og:url" content="\${origin}\${path}"><meta property="og:image" content="\${origin}\${CARD_AT}\${c.image}.png">
 <meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="\${attr(c.title)}"><meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="\${attr(c.title)}"><meta name="twitter:description" content="\${attr(c.description)}"><meta name="twitter:image" content="\${origin}/share/card/\${c.image}.png">
+<meta name="twitter:title" content="\${attr(c.title)}"><meta name="twitter:description" content="\${attr(c.description)}"><meta name="twitter:image" content="\${origin}\${CARD_AT}\${c.image}.png">
 </head><body><p><a href="\${c.to}">\${attr(c.title)}</a></p></body></html>\`;
 // True only for a request carrying a valid Cloudflare Access token for this application: signed
 // by the team's current key, for this audience, from this team, not expired.
