@@ -2,8 +2,9 @@
 // Full JSON export, the offline HTML snapshot, the markdown snapshot for the repo,
 // and the iCalendar feed. All of them start from exportAll().
 
+import { looseNotes } from "./daylog";
 import type { Db } from "./db";
-import type { AgendaItem, DailyLog, Digest, Entry, Link, OneOnOne, Person, Project, QueueItem, Run, Task } from "./types";
+import type { AgendaItem, BlockResult, DailyLog, Digest, Entry, Link, OneOnOne, Person, Project, QueueItem, Run, Task } from "./types";
 import { DEFAULT_TZ, nowIso } from "./util";
 
 export const EXPORT_TABLES = [
@@ -19,6 +20,7 @@ export const EXPORT_TABLES = [
   "project_tags",
   "digests",
   "daily_logs",
+  "block_results",
   "settings",
   "queue_items",
   "runs",
@@ -41,6 +43,7 @@ export interface ExportData {
     project_tags: { project_id: string; tag_id: string }[];
     digests: Digest[];
     daily_logs: DailyLog[];
+    block_results: BlockResult[];
     settings: { key: string; value: string }[];
     queue_items: QueueItem[];
     runs: Run[];
@@ -140,7 +143,8 @@ export function snapshotFiles(data: ExportData, tz: string = DEFAULT_TZ): Record
     for (const l of logged) {
       out.push(`## ${new Date(`${l.day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric", year: "numeric" })}`, "");
       if (l.body.trim()) out.push(l.body.trim(), "");
-      const said = l.notes.split("\n").map((x) => x.trim()).filter(Boolean);
+      // Notes the write-up already covers are not listed a second time.
+      const said = looseNotes(l);
       if (said.length) out.push(...(l.body.trim() ? ["Also, in his words:", ""] : []), ...said.map((x) => `- ${x}`), "");
     }
     files["log.md"] = out.join("\n") + "\n";

@@ -306,6 +306,10 @@ Now use it, and change it as you go. Some patterns that worked:
   your email, calendar or Apple Health. Ask it to read them when you say so ("go through my email
   and update my dashboard", "update my health page") and to save what it found through your
   server. The website stays simple and reads nothing behind your back.
+- **A scheduled run should not ask you questions.** If you keep notifications off, a question in
+  a chat app goes unseen. Have the run do what the day plainly shows, leave the rest, and email
+  you only when something needs you (for example, "here is what I added to your log; tell me if
+  anything is missing").
 - **Screenshots are input too.** When an app will not share its data, send the chatbot a
   screenshot and have it save the numbers exactly as shown, with a tool built for that.
 - **Bring documents into the server.** Books, a program spreadsheet, articles you trust: load them

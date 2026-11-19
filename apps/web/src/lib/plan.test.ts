@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inOrder, isCopyOfBlock, layOut, meetingTitle, openTimes, orderBetween, readWhen, rowOf } from "./plan";
+import { inOrder, isCopyOfBlock, layOut, meetingTitle, needsPlace, openTimes, orderBetween, projectForTitle, readWhen, rowOf } from "./plan";
 
 const W = "2026-11-16"; // a Monday
 const cur = { day: "2026-11-17", start: 9 * 60, minutes: 30 };
@@ -9,6 +9,18 @@ describe("the board", () => {
     expect(rowOf({ board: null, people: [] })).toBe("new");
     expect(rowOf({ board: null, people: [{ id: "p", name: "Greta", waiting: true, one_on_one: false }] })).toBe("waiting");
     expect(rowOf({ board: "back", people: [{ id: "p", name: "Greta", waiting: true, one_on_one: false }] })).toBe("back");
+  });
+
+  it("leaves off a task that is in a project or already has time set aside", () => {
+    const blocks = [{ task_id: "blocked", day: "2026-11-18" }, { task_id: "missed", day: "2026-11-16" }];
+    const today = "2026-11-17";
+    expect(needsPlace({ id: "loose", project_id: null }, blocks, today)).toBe(true);
+    expect(needsPlace({ id: "in-project", project_id: "prj_1" }, blocks, today)).toBe(false);
+    expect(needsPlace({ id: "blocked", project_id: null }, blocks, today)).toBe(false);
+    // Yesterday's block came and went: the task is back on the board.
+    expect(needsPlace({ id: "missed", project_id: null }, blocks, today)).toBe(true);
+    // A block later today still counts.
+    expect(needsPlace({ id: "missed", project_id: null }, blocks, "2026-11-16")).toBe(false);
   });
 
   it("orders a row and drops between two cards with one number", () => {
@@ -90,5 +102,35 @@ describe("a block copied to his calendar", () => {
     expect(isCopyOfBlock({ day: "2026-11-18", start: 540, title: "Decide on Riley Grant's new contract" }, blocks)).toBe(false);
     expect(isCopyOfBlock({ day: "2026-11-17", start: 600, title: "Decide on Riley Grant's new contract" }, blocks)).toBe(false);
     expect(isCopyOfBlock({ day: "2026-11-17", start: 540, title: "Weekly plan" }, blocks)).toBe(false);
+  });
+});
+
+describe("which project a calendar entry is his time for", () => {
+  const projects = [{ title: "Price and Fee Review Prep" }, { title: "Garden Shed Rebuild" }, { title: "Home Office" }, { title: "Reading Habit App" }, { title: "Reading Habit App Store listing" }];
+  const of = (title: string, loose = true) => projectForTitle(title, projects, loose)?.title ?? null;
+
+  it("is the project whose name the title is, give or take Work on and punctuation", () => {
+    expect(of("Work on Price and Fee Review Prep", false)).toBe("Price and Fee Review Prep");
+    expect(of("price & fee review prep")).toBe("Price and Fee Review Prep");
+  });
+
+  it("survives a rename: words added or left off at the end, for his own time only", () => {
+    // The block made before the project was renamed.
+    expect(of("Work on Price and Fee Review")).toBe("Price and Fee Review Prep");
+    expect(of("Price and Fee Review Prep: draft the slides")).toBe("Price and Fee Review Prep");
+    // A meeting with other people on it only counts by its exact name.
+    expect(of("Work on Price and Fee Review", false)).toBeNull();
+  });
+
+  it("never guesses", () => {
+    // Too short to stand for a project.
+    expect(of("Personal")).toBeNull();
+    expect(of("Garden Shed")).toBeNull();
+    // Fits two projects.
+    expect(of("Reading Habit App Store listing screenshots")).toBeNull();
+    // Words in the middle are not a match.
+    expect(of("Price planning and Fee Review")).toBeNull();
+    // An exact name wins over a longer one.
+    expect(of("Reading Habit App")).toBe("Reading Habit App");
   });
 });

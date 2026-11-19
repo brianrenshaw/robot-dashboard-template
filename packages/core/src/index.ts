@@ -27,6 +27,7 @@ export * from "./sync";
 export * from "./views";
 export * from "./perspectives";
 export * from "./daylog";
+export * from "./owntime";
 export * from "./blocks";
 export * from "./meetings";
 export * from "./export";

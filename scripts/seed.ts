@@ -21,6 +21,8 @@ import {
   DEFAULT_TZ,
   linkPersonToProject,
   saveDailyLog,
+  saveBlockResult,
+  listOwnTime,
   setOneOnOne,
   storeCalendarEvents,
   todayInTz,
@@ -77,6 +79,22 @@ const MEETINGS: { day: number; at: string; minutes: number; title: string; with:
   { day: 3, at: "11:00", minutes: 60, title: "Leadership team", with: ["peter@example.com", "sam@example.com", "kai@example.com", "greta@example.com"] },
   { day: 3, at: "14:30", minutes: 30, title: "Interview: account manager", with: ["sam@example.com"] },
   { day: 4, at: "10:00", minutes: 30, title: "Greta and Alex 1:1", with: ["greta@example.com"] },
+  // Time set aside in the calendar itself, with no one else on it: his own time, not meetings.
+  { day: 0, at: "08:00", minutes: 45, title: "Inbox and replies", with: [] },
+  { day: 1, at: "15:00", minutes: 60, title: "Customer newsletter: map it out", with: [] },
+  { day: 2, at: "08:00", minutes: 90, title: "Work on Pricing review for next year", with: [] },
+  { day: 3, at: "08:30", minutes: 60, title: "Customer newsletter: first draft", with: [] },
+];
+/**
+ * How some of that time went, as he would answer "Did you get to it?" (only for days already
+ * past when the sample is loaded): did the work, did not get to it, or did something else.
+ */
+const ANSWERS: { title: string; kept: boolean; instead?: string }[] = [
+  { title: "Draft the pricing memo", kept: true },
+  { title: "Inbox and replies", kept: false },
+  { title: "Customer newsletter: map it out", kept: false, instead: "Budget slides for December" },
+  { title: "Write the account manager job description", kept: true },
+  { title: "Work on Pricing review for next year", kept: true },
 ];
 const TASKS: { title: string; board?: BoardRow; project?: string; due?: number; waiting?: string[]; people?: string[]; oneOnOne?: string; block?: { day: number; at: string; minutes: number } }[] = [
   { title: "Draft the pricing memo", board: "todo", project: "Pricing review for next year", due: 3, block: { day: 0, at: "15:00", minutes: 90 } },
@@ -147,12 +165,30 @@ async function sampleWeek(ctx: Ctx, people: Map<string, string>, projects: Map<s
     if (s.block) await addTimeBlock(ctx, { task_id: task.id, day: day(s.block.day), start_min: toMinutes(s.block.at), minutes: s.block.minutes });
   }
 
-  const yesterday = addDays(today, -1);
-  await saveDailyLog(ctx, {
-    day: yesterday,
-    body: "A quiet day of planning.\n\n## Worked on\n- The pricing memo: first outline\n- Read the onboarding survey summary",
-    add: ["Sent Sam the interview questions"],
-  });
+  // A few days of the log, written the way the chatbot writes them: one line for each thing,
+  // and work on a project under a heading that is exactly the project's title, every day.
+  const LOGS: { ago: number; body: string; add?: string[] }[] = [
+    {
+      ago: 1,
+      body: "### Pricing review for next year\n\n* Finished the first outline of the pricing memo\n* Asked Maya for the Q3 numbers by region\n\n- **Kai** (9:00, 1:1): renewals look steady; Kai wants a second person on onboarding calls\n- **Interview questions**: sent Sam the questions for Thursday",
+      add: ["Sent Sam the interview questions"],
+    },
+    {
+      ago: 2,
+      body: "### Customer onboarding redesign\n\n* Read the onboarding survey summary and marked the three biggest drop-offs\n\n### Pricing review for next year\n\n* Pulled last year's discounts into one sheet\n\n- **Leadership team** (11:00): agreed to move the offsite to March",
+    },
+    {
+      ago: 4,
+      body: "### Hiring: two account managers\n\n* Posted the job and shared it with the team\n\n- **Budget**: first pass at the December slides",
+    },
+    { ago: 7, body: "", add: ["Wrote the first customer newsletter"] },
+  ];
+  for (const l of LOGS) await saveDailyLog(ctx, { day: addDays(today, -l.ago), ...(l.body ? { body: l.body } : {}), ...(l.add ? { add: l.add } : {}) });
+
+  for (const a of ANSWERS) {
+    const s = (await listOwnTime(ctx.db, day(0), day(4))).find((o) => o.title === a.title && o.day < today);
+    if (s) await saveBlockResult(ctx, { ref: s.ref, kept: a.kept, instead: a.instead });
+  }
   await addEntry(ctx, {
     kind: "meeting",
     title: "1:1 with Kai",
@@ -212,6 +248,7 @@ async function main() {
     "tasks",
     "task_people",
     "time_blocks",
+    "block_results",
     "daily_logs",
     "entries",
     "entry_people",

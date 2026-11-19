@@ -201,6 +201,8 @@ export interface DailyLog {
   body: string;
   /** What he told his chatbot he did, one thing per line, in the order he said it. */
   notes: string;
+  /** How many of those notes (from the first) the write-up already covers; the rest show beneath it. */
+  notes_folded: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -266,7 +268,7 @@ export interface AgendaItem {
   person_id: string;
   /** discuss: bring it up next time. action: something that came out of a meeting. */
   kind: AgendaKind;
-  /** For actions: 'me' (The owner owes them), 'them' (they owe the owner), null (not sorted yet). */
+  /** For actions: 'me' (the owner owes them), 'them' (they owe the owner), null (not sorted yet). */
   owner: "me" | "them" | null;
   title: string;
   notes: string;
@@ -320,6 +322,24 @@ export interface TimeBlock {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+}
+
+/** How one session of his own time went (owntime.ts). One row for a session on a day: the key is ref and day. */
+export interface BlockResult {
+  /** 'block:<time_blocks.id>' or 'calendar:<calendar_events.id>'. */
+  ref: string;
+  day: string;
+  start_min: number;
+  minutes: number;
+  title: string;
+  task_id: string | null;
+  /** 1: he did the work in that time. 0: he did not (see `instead`). null: not said. */
+  kept: number | null;
+  /** What he did in that time instead, when he said. Only ever set with kept 0. */
+  instead: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Settings {

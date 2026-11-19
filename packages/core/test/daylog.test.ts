@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays, addEntry, addTask, completeTask, createPerson, dayFacts, exportAll, getDailyLog, getHome, lastAuditBy,
-  listAudit, listDailyLogs, logNotes, saveDailyLog, search, setOneOnOne, snapshotFiles, storeCalendarEvents, todayInTz, undoAudit,
+  listAudit, listDailyLogs, logDays, logNames, logNotes, looseNotes, namesIn, saveDailyLog, search, setOneOnOne, snapshotFiles, storeCalendarEvents, todayInTz, undoAudit,
 } from "../src";
 import { ctx } from "./helpers";
 
@@ -27,6 +27,37 @@ describe("daily log", () => {
 
     expect(await listDailyLogs(c.db)).toHaveLength(1);
     expect((await getHome(c.db)).log?.day).toBe(today);
+  });
+
+  it("says nothing twice: a write-up covers the notes there were, and only later ones show beside it", async () => {
+    const c = ctx("mcp:claude");
+    await saveDailyLog(c, { add: ["Finished the Grant contract proposal and sent it to Jordan"] });
+    // Before the day is written up, his notes are the day.
+    expect(looseNotes(await getDailyLog(c.db, today))).toHaveLength(1);
+
+    // The write-up folds that note in with the email and the task about the same thing.
+    await saveDailyLog(c, { body: "- **Grant contract**: finished the proposal and sent it to Jordan Ames" });
+    let log = (await getDailyLog(c.db, today))!;
+    expect(logNotes(log)).toHaveLength(1); // his words are kept
+    expect(looseNotes(log)).toEqual([]); // and not listed a second time
+
+    // Said after the write-up: it shows on its own until the day is written up again.
+    await saveDailyLog(c, { add: ["Called the registrar"] });
+    expect(looseNotes(await getDailyLog(c.db, today))).toEqual(["Called the registrar"]);
+    // Saving the same write-up again covers nothing new.
+    await saveDailyLog(c, { body: "- **Grant contract**: finished the proposal and sent it to Jordan Ames" });
+    expect(looseNotes(await getDailyLog(c.db, today))).toEqual(["Called the registrar"]);
+
+    // His answer to "anything else?" is saved with the write-up that now includes it.
+    await saveDailyLog(c, { add: ["Reviewed the budget"], body: "- **Grant contract**: finished the proposal and sent it to Jordan Ames\n- **Registrar**: called\n- **Budget**: reviewed" });
+    log = (await getDailyLog(c.db, today))!;
+    expect(logNotes(log)).toHaveLength(3);
+    expect(looseNotes(log)).toEqual([]);
+    expect(snapshotFiles(await exportAll(c.db))["log.md"]).not.toContain("- Called the registrar");
+
+    // Undoing that save goes back to the day as it stood: one note not yet in the write-up.
+    expect((await undoAudit(c, (await lastAuditBy(c.db, "mcp:claude"))!.id)).ok).toBe(true);
+    expect(looseNotes(await getDailyLog(c.db, today))).toEqual(["Called the registrar"]);
   });
 
   it("logs an earlier day, lists a range newest first, and refuses a day that has not happened", async () => {
@@ -78,6 +109,8 @@ describe("daily log", () => {
       { id: "e1", summary: "Kai and Alex 1:1", start: { dateTime: at(15).toISOString() }, end: { dateTime: at(16).toISOString() }, attendees: [{ email: "alex@example.edu", self: true }, { email: "kai@example.edu" }] },
       { id: "e2", summary: "Pipeline review", start: { dateTime: at(17).toISOString() }, end: { dateTime: at(18).toISOString() }, attendees: [{ email: "alex@example.edu", self: true }, { email: "nina@example.edu" }, { email: "kai@example.edu" }] },
       { id: "e3", summary: "Next week planning", start: { date: addDays(today, 3) } },
+      // No one else on it: time he set aside for himself, which is not a meeting.
+      { id: "e4", summary: "Finalize the contract", start: { dateTime: at(19).toISOString() }, end: { dateTime: at(20).toISOString() } },
     ], "America/New_York");
 
     const done = await addTask(c, { title: "Send the pipeline numbers" });
@@ -91,14 +124,17 @@ describe("daily log", () => {
       ["Kai and Alex 1:1", ["Kai Hale"]],
       ["Pipeline review", ["Kai Hale", "Nina Wade"]],
     ]);
+    expect(f.own_time.map((o) => [o.title, o.source, o.minutes, o.kept])).toEqual([["Finalize the contract", "calendar", 60, null]]);
     expect(f.tasks_added.map((t) => t.title).sort()).toEqual(["Nina to draft the MBA memo", "Send the pipeline numbers"]);
     expect(f.tasks_added.find((t) => t.title.startsWith("Nina"))!.people.map((p) => p.name)).toEqual(["Nina Wade"]);
     expect(f.tasks_finished.map((t) => t.title)).toEqual(["Send the pipeline numbers"]);
     expect(f.notes_filed.map((e) => e.title)).toEqual(["1:1 with Kai"]);
 
     // A day with nothing on it, too far back for the calendar copy.
-    const old = await dayFacts(c.db, addDays(today, -10));
+    const old = await dayFacts(c.db, addDays(today, -20));
     expect(old.meetings_known).toBe(false);
+    // The copy reaches back two weeks, so a day last week can still be logged with its meetings.
+    expect((await dayFacts(c.db, addDays(today, -10))).meetings_known).toBe(true);
     expect(old.tasks_added).toHaveLength(0);
     expect(old.tasks_finished).toHaveLength(0);
   });
@@ -115,6 +151,45 @@ describe("daily log", () => {
     expect(files["log.md"]).toContain("Worked on the MBA pathway with Dylan.");
     expect(files["log.md"]).toContain("- Reviewed the pathway budget");
     expect(files["index.md"]).toContain("(log.md)");
+  });
+});
+
+describe("the log page's list, calendar and search", () => {
+  it("lists the days that have a log, and keeps the days that have every word of a search", async () => {
+    const c = ctx("mcp:claude");
+    await saveDailyLog(c, { day: addDays(today, -3), body: "### Pricing Review\n\n- Finished the planner" });
+    await saveDailyLog(c, { day: addDays(today, -1), add: ["Sent the Grant contract to Jordan Ames"] });
+    await saveDailyLog(c, { body: "- **Grant contract**: Jordan approved it" });
+    // A day whose only write was undone has nothing in it, and is not a logged day.
+    await saveDailyLog(c, { day: addDays(today, -6), add: ["A slip"] });
+    await undoAudit(c, (await lastAuditBy(c.db, "mcp:claude"))!.id);
+
+    expect(await logDays(c.db)).toEqual([today, addDays(today, -1), addDays(today, -3)]);
+    expect((await listDailyLogs(c.db, { q: "grant" })).map((l) => l.day)).toEqual([today, addDays(today, -1)]);
+    expect((await listDailyLogs(c.db, { q: "grant  ames" })).map((l) => l.day)).toEqual([addDays(today, -1)]);
+    expect(await listDailyLogs(c.db, { q: "nowhere" })).toEqual([]);
+  });
+});
+
+describe("the same work under the same name each day", () => {
+  it("reads the names a write-up uses: its headings and the bold words its lines open with", () => {
+    expect(namesIn("Mostly the contract.\n\n## Pricing Review\n\n* Finished the planner\n* Asked Ned for the **PDFs**\n\n- **Grant contract**: sent to Jordan\n- **Team Hub:** sent to the deans\n### pricing review")).toEqual([
+      "Pricing Review",
+      "Grant contract",
+      "Team Hub",
+    ]);
+  });
+
+  it("gives the names used over a stretch of days, with the days each was used on", async () => {
+    const c = ctx("mcp:claude");
+    await saveDailyLog(c, { day: addDays(today, -2), body: "### Discounts and Harbor plan\n\n* Categorized the funds\n\n### Northfield Institute\n\n* Sent the agreement" });
+    await saveDailyLog(c, { day: addDays(today, -1), body: "## Customer Pricing Comparison Tool\n\n* Rebuilt the comparison\n\n### Northfield Institute\n\n* Confirmed the language" });
+    await saveDailyLog(c, { body: "### Northfield Institute\n\n* Today is not part of what came before" });
+    expect(await logNames(c.db, addDays(today, -14), addDays(today, -1))).toEqual([
+      { name: "Customer Pricing Comparison Tool", days: [addDays(today, -1)] },
+      { name: "Northfield Institute", days: [addDays(today, -1), addDays(today, -2)] },
+      { name: "Discounts and Harbor plan", days: [addDays(today, -2)] },
+    ]);
   });
 });
 

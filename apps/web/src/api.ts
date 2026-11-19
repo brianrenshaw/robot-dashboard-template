@@ -34,6 +34,8 @@ import type {
   TimeBlock,
   TimeBlockView,
   BoardRow,
+  BlockResult,
+  BlockTally,
 } from "@pd/core";
 import { useScope } from "./spaces";
 
@@ -41,7 +43,7 @@ export type {
   AuditView, HomeData, Link, PersonCard, PersonDetail, Project, ProjectCard, ProjectDetail,
   SearchResults, Settings, Task, EntryView, Run, AgendaItem, OneOnOne, OneOnOneCard, OneOnOneDetail, ProjectPulse, CalendarEvent, GoogleAccount, SecretInfo, SyncReport,
 };
-export type { SavedView, DailyLog, TimeBlock, TimeBlockView, BoardRow };
+export type { SavedView, DailyLog, TimeBlock, TimeBlockView, BoardRow, BlockResult, BlockTally };
 /** How a task list is narrowed. See `taskFilterSchema` in packages/core/src/schemas.ts. */
 export type TaskFilter = TaskFilterInput;
 export type { Person, Area, ProjectStatus, EntryKind, TaskStatus, LinkKind, ProjectRole, PersonRef, TaskItem, TaskPerson, PersonComingUp } from "@pd/core";
@@ -282,6 +284,33 @@ export function useDeleteBlock() {
     (id, qc) => patchBlocks(qc, (bs) => bs.filter((b) => b.id !== id)),
   );
 }
+/**
+ * Say whether he did the work in a session of his own time. `ref` is block:<id> for a block on
+ * the dashboard, calendar:<event id> for a calendar entry by himself. null takes the answer back.
+ */
+/**
+ * How a session of his own time went: he did the work (kept true), he did not get to it (kept
+ * false), he did something else (kept false with `instead`), or the answer taken back (null).
+ * The answer belongs to the session on its day, so the day goes with the ref.
+ */
+export function useSaveBlockResult() {
+  return useWrite(
+    (v: { ref: string; day: string; kept: boolean | null; instead?: string }) => api.put<BlockResult>("/api/blocks/result", v),
+    (v, qc) =>
+      qc.setQueryData<HomeData>(["home"], (old) => {
+        if (!old) return old;
+        const same = (r: BlockResult) => r.ref === v.ref && r.day === v.day;
+        const rest = old.block_results.filter((r) => !same(r));
+        const was = old.block_results.find(same);
+        const row: BlockResult = { start_min: 0, minutes: 0, title: "", task_id: null, created_by: "", created_at: "", updated_at: "", ...was, ref: v.ref, day: v.day, kept: v.kept ? 1 : 0, instead: v.kept === false ? v.instead ?? was?.instead ?? "" : "" };
+        return { ...old, block_results: v.kept === null ? rest : [...rest, row] };
+      }),
+  );
+}
+/** How his time blocks went over the last `days` days: the ones he answered for. */
+export function useBlockTally(days = 28) {
+  return useQuery({ queryKey: ["block-tally", days], queryFn: () => api.get<BlockTally>(`/api/blocks/tally?days=${days}`) });
+}
 /** Write a meeting's note: body replaces it, add puts a line on the end. */
 export function useSaveMeetingNote() {
   return useWrite(
@@ -305,8 +334,17 @@ export function useDeleteTask() {
 }
 
 /** The daily log, newest day first. The chatbot writes it; the site only reads it. */
-export function useDailyLog(limit = 30) {
-  return useQuery({ queryKey: ["log", limit], queryFn: () => api.get<DailyLog[]>(`/api/log?limit=${limit}`), placeholderData: (prev) => prev });
+/** Logged days, newest first. `q` keeps the days whose text has every word. */
+export function useDailyLog(limit = 30, q = "") {
+  return useQuery({ queryKey: ["log", limit, q], queryFn: () => api.get<DailyLog[]>(`/api/log?limit=${limit}${q ? `&q=${encodeURIComponent(q)}` : ""}`), placeholderData: (prev) => prev });
+}
+/** Every day that has a log, newest first: what the Log page's calendar marks. */
+export function useLogDays() {
+  return useQuery({ queryKey: ["log-days"], queryFn: () => api.get<string[]>(`/api/log/days`) });
+}
+/** One day of the log, for a day the list has not loaded. null when nothing was logged. */
+export function useLogDay(day: string | null, enabled = true) {
+  return useQuery({ queryKey: ["log-day", day], queryFn: () => api.get<DailyLog | null>(`/api/log/${day}`), enabled: !!day && enabled });
 }
 
 export function useAudit(limit = 150) {

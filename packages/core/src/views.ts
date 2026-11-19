@@ -9,7 +9,7 @@ import { AmbiguousError, NotFoundError } from "./errors";
 import { insertRow } from "./rows";
 import { digestSchema, type TaskFilterInput } from "./schemas";
 import { getSettings } from "./settings";
-import type { Area, Ctx, DailyLog, Digest, Entry, Person, Project, Run, Settings, Task, TaskPerson } from "./types";
+import type { Area, BlockResult, Ctx, DailyLog, Digest, Entry, Person, Project, Run, Settings, Task, TaskPerson } from "./types";
 import { listTags, tagsFor, type TagCount } from "./tags";
 import { latestRuns } from "./runs";
 import { listOneOnOnes, type OneOnOneCard } from "./oneonones";
@@ -20,6 +20,7 @@ import { latestDailyLog, searchDailyLogs } from "./daylog";
 import { addDays, isoDaysAgo, newId, nowIso, todayInTz } from "./util";
 import { attachCardInfo, listProjects, type ProjectCard } from "./projects";
 import { listTimeBlocks, type TimeBlockView } from "./blocks";
+import { listBlockResults } from "./owntime";
 import { meetingNotes } from "./meetings";
 import { attachEntryInfo, entriesCreatedSince, listTimeline, type EntryView } from "./entries";
 
@@ -358,6 +359,8 @@ export interface HomeData {
   week_start: string;
   /** Time he set aside for tasks, from week_start through the next two weeks. */
   blocks: TimeBlockView[];
+  /** His answers for sessions of his own time in that stretch: whether he did the work in each. */
+  block_results: BlockResult[];
   /** The notes he wrote for those meetings (one per meeting; source_ref "calendar:<event id>"). */
   meeting_notes: EntryView[];
   /** True once at least one Google account is connected in Settings. */
@@ -398,6 +401,7 @@ export async function getHome(db: Db, areas?: Area[]): Promise<HomeData> {
     calendar_people: await listCalendarEventPeople(db, weekStart(today), addDays(today, 14)),
     week_start: weekStart(today),
     blocks: await listTimeBlocks(db, weekStart(today), addDays(weekStart(today), 18)),
+    block_results: await listBlockResults(db, weekStart(today), addDays(weekStart(today), 18)),
     meeting_notes: await meetingNotes(db, calendar.map((e) => e.id)),
     calendar_connected: (await listGoogleAccounts(db)).length > 0,
     pulse: await projectPulse(db),

@@ -1,7 +1,12 @@
 // DayLog.tsx
 // One day of the daily log, as it reads: the day written up by his chatbot at its end, then
-// the things he said he did, in his own words. Used on the Log page and under "Today's log" on
-// the dashboard. There is nothing to edit here: he changes the log by telling his chatbot.
+// anything he said he did that the write-up does not cover yet. Used on the Log page and under
+// "Today's log" on the dashboard. There is nothing to edit here: he changes the log by telling
+// his chatbot.
+//
+// Nothing is listed twice (2026-11-16: "I just don't want duplicated line items"). The
+// write-up folds his own notes in, so only the notes he added after it was saved show beneath
+// it (`notes_folded` counts the ones it covers). A day with no write-up is simply his notes.
 
 import type { DailyLog } from "../api";
 import { Markdown } from "./ui";
@@ -18,15 +23,16 @@ export function logPreview(log: DailyLog): string {
 }
 
 export function DayLog({ log }: { log: DailyLog }) {
-  const said = notesOf(log);
   const written = log.body.trim();
+  const said = written ? notesOf(log).slice(log.notes_folded ?? 0) : notesOf(log);
   return (
     <div className="max-w-[70ch] text-[14px] leading-relaxed">
-      {written && <Markdown className="brief">{written}</Markdown>}
+      {/* A heading in a write-up is the name of a piece of work (a project), so it reads as a name. */}
+      {written && <Markdown className="daylog">{written}</Markdown>}
       {said.length > 0 && (
         <div className={written ? "mt-4" : ""}>
           {/* Only labeled when it sits under a write-up; alone, it is simply the day. */}
-          {written && <h3 className="tile-title mb-1.5">In your words</h3>}
+          {written && <h3 className="tile-title mb-1.5">Added later</h3>}
           {/* The same list styling as the write-up above it (.md), so the two line up. */}
           <div className="md">
             <ul>

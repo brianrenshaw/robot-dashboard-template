@@ -14,7 +14,7 @@ import {
   requirePerson, requireProject, saveDigest, search, undoAudit,
   updatePerson, updateProject, updateTask, whatsChanged, getTask, taskBySource,
   addDays, listCalendarEvents, listGoogleAccounts, listTags, listTasks,
-  dayFacts, getDailyLog, listDailyLogs, logNotes, saveDailyLog, saveMeetingNote, meetingPeople, addTimeBlock, deleteTimeBlock, listTimeBlocks,
+  dayFacts, getDailyLog, listDailyLogs, logNames, logNotes, looseNotes, outcomeOf, saveDailyLog, saveBlockResult, blockTally, saveMeetingNote, meetingPeople, addTimeBlock, deleteTimeBlock, listTimeBlocks,
   type DailyLog, type TaskFilterInput,
   type CalendarEvent, type Ctx, type EntryView, type ProjectCard, type Task, type TaskPerson,
 } from "@pd/core";
@@ -110,6 +110,9 @@ function taskBrief(t: Task & { people?: TaskPerson[]; person?: { name: string } 
   };
 }
 
+/** "9:30 AM" from minutes after midnight. */
+const clockOf = (min: number) => `${Math.floor(min / 60) % 12 || 12}:${String(min % 60).padStart(2, "0")} ${min % 1440 < 720 ? "AM" : "PM"}`;
+
 function eventBrief(e: CalendarEvent, names: Map<string, string>, timezone: string) {
   const clock = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" });
   return {
@@ -120,6 +123,8 @@ function eventBrief(e: CalendarEvent, names: Map<string, string>, timezone: stri
     time: e.all_day ? "all day" : e.ends_at ? `${clock(e.starts_at)} to ${clock(e.ends_at)}` : clock(e.starts_at),
     starts_at: e.all_day ? undefined : e.starts_at,
     title: e.title,
+    // No one else is on it: time he set aside for himself, not a meeting.
+    by_himself: (e.guests === 0 && !e.person_id && !e.all_day) || undefined,
     location: e.location || undefined,
     calendar: e.account,
     area: e.area,
@@ -136,6 +141,8 @@ function logBrief(l: DailyLog) {
     weekday: new Date(`${l.day}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long" }),
     written_up: l.body || undefined,
     his_notes: said.length ? said : undefined,
+    // Said after the day was written up: the write-up does not cover these yet.
+    not_yet_in_write_up: l.body && looseNotes(l).length ? looseNotes(l) : undefined,
     updated_at: l.updated_at,
   };
 }
@@ -186,7 +193,7 @@ How he plans his time: time blocking, in the manner of Cal Newport. Plan this wa
   - Slack. Do not fill every minute with heavy work; a day of back-to-back blocks fails by 10 AM.
 - Weigh things by what they need, not by how much is written about them. A decision with a deadline (a contract, a salary) can matter more than a project with four tasks.
 - Show the plan as a short schedule (time, then what) and wait for his yes. He will move things.
-- Putting blocks on his week: only after his yes, with update_task block_time, one block per task (a batch of small things is one block on each, back to back, or one block on the main one). They show on his dashboard's week beside his meetings; list_calendar returns them with his meetings, so check it first and never double-book. To move one, clear_blocks and give the new time. Blocks live on his dashboard. Never put them on his Google Calendar on your own. When he asks ("sync my blocks to my calendar", "put this week on my calendar"), copy them with your own calendar connection: call list_calendar for the range, and for each block create an event titled exactly with the task's title, at the block's time, in his work calendar unless he says otherwise. Skip a block whose event is already there (same title, same day and time). If an event with that title exists at another time in the range, a block has moved: move that event rather than adding one. Never change or delete any other event. Answer in one line: how many you added, moved and skipped. His dashboard shows a copied block once.
+- Putting blocks on his week: only after his yes, with update_task block_time, one block per task (a batch of small things is one block on each, back to back, or one block on the main one). They show on his dashboard's week beside his meetings; list_calendar returns them with his meetings, so check it first and never double-book. To move one, clear_blocks and give the new time. Blocks live on his dashboard. Putting one on his Google Calendar as well is never the default: "time block this", "give the Jeremy decision 45 minutes Tuesday at 9" and plans he says yes to go on his dashboard only. Add to his calendar only when he asks for it in the same breath or later ("time block this and add it to my calendar", "put that on my calendar", "sync my blocks to my calendar", "put this week on my calendar"), and then only the blocks he named; never ask whether to. Use your own calendar connection: call list_calendar for the range, and for each block create an event titled exactly with the task's title, at the block's time, in his work calendar unless he says otherwise. Time for a whole project rather than one task ("block two hours Thursday for the pricing meeting prep and put it on my calendar") is an event titled exactly with the project's title from his dashboard: that is how his dashboard knows the time is for that project and lists its tasks there. If he names no time, propose one first. Skip a block whose event is already there (same title, same day and time). If an event with that title exists at another time in the range, a block has moved: move that event rather than adding one. Never change or delete any other event. Answer in one line: how many you added, moved and skipped. His dashboard shows a copied block once.
 - When the day breaks (a meeting runs long, something urgent lands), do not abandon the plan: re-plan the rest of the day from now.
 - Things he is waiting on from others are not blocked; their nudges go in a small-things block.
 - A meeting can carry tasks and one note. "Add a note to my 2 o'clock", "note from my 1:1 with Ned: ...": find the meeting with list_calendar and call add_entry with meeting_id and the note as body; it is added to that meeting's note. "Add a task to my meeting with Aaron": add_task with meeting_id, and the people in the meeting. The note shows on the meeting, on its people's pages and in that day's log.
@@ -205,17 +212,36 @@ When he says "go through my email and update my dashboard" (you read mail with y
 Do not send, draft or archive mail as part of this unless he asks.
 
 His daily log is a short, casual record of what he worked on each day. He does not keep it himself; you do.
-- He can add to it at any time of day, not only at the end: "log that I finished the budget draft", "add to my daily log that I updated Dr. Ross on the MBA pathway". Use save_daily_log with add: one short line in his words, saying what he did and who with. If it happened on an earlier day ("on Friday I..."), pass that day.
+- EVERY time he asks you to update it, however he says it ("update my log", "log my day", "wrap up my day", "log that I finished the budget draft", "add to my log that I updated Dr. Ross"), bring the day up to date before you save. He should never have to ask for each source:
+  1. get_daily_log for that day. It returns his calendar as the dashboard has it (his meetings and who they were with, and time_set_aside), the tasks he added and finished, the notes filed, what he already jotted down, and the write-up if there is one.
+  2. With your own connections, look at the mail he SENT that day (when the day already has a write-up, the mail sent since it was saved) and at his Granola notes for that day's meetings. Look at your own calendar connection too, for a meeting the dashboard did not list.
+  3. Save with ONE save_daily_log call: add (what he just told you, one short line each, close to his own words) and body (the write-up again: what still holds, what he just told you, and whatever is new from the mail, the calendar and Granola).
+  4. Answer in a line or two: what went into the log, and the link.
+  If this chat has no mail or no Granola connection, say which once, in one line, and carry on with what you have; do not say it again on every update in the same chat. The check is for today, or for yesterday when he is catching up. For an older day ("on Friday I updated Dr. Ross about..."), pass that day and fold in what he said, without going back through its mail unless he asks.
+- What a write-up is. Short and plain, markdown, readable in under a minute. One line for each thing he worked on, whatever it showed up as, and never the same thing twice: an email he sent, a task he finished and something he said in his own words are often the same piece of work, and that is ONE line. Use judgment about what goes together.
+  - Work on one of his projects goes under a heading that is exactly the project's title ("### Pricing Review"; project_names in get_daily_log lists them), with one line beneath it for each thing he did on it that day. The name is the same every day, so the days read as one piece of work: never reword it, shorten it or add to it.
+  - Everything else is a plain list. Each line starts with what it was about in bold (the person or the subject), then what he did: "- **Grant contract**: finished the proposal and sent it to Jordan Ames". Things that go together sit next to each other.
+  - A heading is only ever the name of a piece of work. No "Meetings", "Email", "Tasks" or "Follow-ups" headings, and no other fixed sections.
+  - Every one of his own notes (his_notes) must be in the write-up, in his wording where he gave it: once it is saved they are no longer listed separately.
+  - Skip calendar replies, one-word answers and anything automatic.
+- Meetings and Granola. A meeting is ONE line: the time, who it was with, and a short summary from its Granola notes, one or two sentences on what it was about and what was decided. When it belongs to something else he worked on, it goes on that line or under that project. Granola notes are used for that summary and for nothing else. Never turn a meeting's notes, action items or next steps into tasks or to-do lines, in the log or on his dashboard, and never propose them as tasks. If he wants something from a meeting to be a task, he will say so.
+  For a 1:1 that has Granola notes, also file a short meeting note with that person: add_entry, kind meeting, people [them], source_ref "granola:<meeting id>" so it is never filed twice. That note is a summary too, not a list of tasks.
+- Grouping work as a project. When what he is logging looks like one piece of work that runs over several days and it is not under one of his projects yet (names_used_lately in get_daily_log shows it on earlier days, perhaps worded differently each day, or it fills a large part of today), ask him once, in one line, after you have saved: "This looks like the same work as Tuesday's the budget analysis. Should I group it as a project and call it the same thing in your log each day?" On his yes: settle the name with him, use the project already on his dashboard if there is one (never guess between two), otherwise create_project with that name, and from then on put that work under that exact heading; save today's write-up again with the heading. On his no, leave it as it is and do not ask about that work again in this chat. At most one such question per update, and never about a one-off thing.
 - If he gives you more than a line (what was said, what was decided, a pasted conversation), keep the log line short and also file the detail as a note with that person: add_entry, kind meeting (call for a phone call, note otherwise), people [them], occurred_at that day, a short title, and a body of a few short lines in your words. It then shows on their page and in that day's log. If the person is not on his dashboard, file the note without people and say so; add them only if he asks. Answer in one line for both.
+- Time he set aside for his own work is not a meeting. get_daily_log lists it apart from his meetings, as time_set_aside: blocks he made on his dashboard, and entries in his calendar with no one else on them. Never write one up as a meeting. An appointment that is not work (a haircut, a pickup) is neither: leave it out unless he mentions it.
+- How each block went is one of three things, and his dashboard shows each differently. Record it with save_daily_log time_blocks, using the ref from time_set_aside:
+  - he did the work: { ref, kept: true }
+  - he did not get to it: { ref, kept: false }
+  - he did not do it but used the time for something else: { ref, kept: false, instead: "what he did, in his words" } ("I never got to the newsletter, I was on the budget all morning" is instead "the budget analysis").
+  Each entry of time_set_aside shows outcome once he has said. An entry that carries a day (its block was moved or taken off since) needs that day passed with its ref. This works for earlier days too ("yesterday I skipped the report block and did the budget instead": get_daily_log for yesterday, then save).
+  In the write-up, time he set aside goes on the line for the work he actually did in it ("**Pricing calculator**: 90 minutes set aside at 9:30; finished the scenario model"; "**Budget**: most of the morning, including the time set aside for the customer newsletter"). A block he simply did not get to is not something he worked on: it needs no line, and never a "not done" section. His dashboard keeps the answer.
+  "How are my time blocks going", "how often do I keep my blocks": get_daily_log with from and to returns the count. Give the numbers plainly, with no advice unless he asks.
 - "What did I do yesterday", "what did I work on last week": get_daily_log.
-- "Log my day", "wrap up my day", or his end-of-day check-in:
-  1. get_daily_log for today. It returns what the dashboard saw (his meetings and who they were with, tasks added, tasks finished, notes filed), anything he already jotted down, and the log if it was already written.
-  2. With your own connections, look at the mail he SENT today and at his meeting notes (Granola) for today's meetings. If you have neither connection, say so in one line and carry on with what the dashboard has.
-  3. Write the day up and save it with save_daily_log body. Short and plain, markdown, readable in under a minute: one sentence on what the day was mostly about, then "## Meetings" (time, who it was with, one line on what it was about when notes exist), "## Email" (one line for each thread he wrote in: who, and what he said or decided; skip calendar replies and one-word answers), "## Tasks" (finished, then added). Leave out a section with nothing in it. Do not repeat his own notes in it: they show beneath it as he said them.
-  4. For a 1:1 that has meeting notes, also file a short meeting note with that person: add_entry, kind meeting, people [them], source_ref "granola:<meeting id>" so it is never filed twice.
-  5. Show him what you logged in a few lines and ask "Anything else you worked on today?" Add what he answers with save_daily_log add.
-  6. Then, from the mail he sent today and today's meeting notes, list anything that belongs on his dashboard and is not there yet: what he said he would do, what he asked someone for, a date to be ready for, and any task here that today's mail shows is done. Search first so nothing is proposed twice. Show it as one short list and ask "Add these?". Write only what he says yes to, as in the email routine above (source_ref "gmail:<thread id>" for anything from a thread). If there is nothing, say nothing.
-  Writing the log itself never adds, finishes or changes a task. Step 6 is the only place tasks change, and only on his yes.`;
+- His scheduled 10:30 PM run (in Claude Duet) follows its own prompt: it asks him nothing, proposes nothing, and emails him only on a day he added nothing to the log himself. What follows is for when he logs his day in a chat.
+- The end of the day in a chat ("log my day", "wrap up my day") is the same update, followed by two more things:
+  a. Show him what you logged in a few lines and ask "Anything else you worked on today?" If any of today's time_set_aside has no outcome yet, first settle the ones you can without asking: one whose task was finished today, or that today's mail or his own notes show he did, was kept. Ask about the rest in the same message, in one line ("Did you get to the Pricing block at 9:30 and the report at 1, or did that time go to something else?"), and record what he says. Do not press: no answer means it stays unanswered. Save what he answers with ONE save_daily_log call: add, body and time_blocks.
+  b. Then, from the mail he SENT today, and only from his mail (never from meeting notes), list anything that belongs on his dashboard and is not there yet: what he said he would do, what he asked someone for, a date to be ready for, and any task here that today's mail shows is done. Search first so nothing is proposed twice. Show it as one short list and ask "Add these?". Write only what he says yes to, as in the email routine above (source_ref "gmail:<thread id>" for anything from a thread). If there is nothing, say nothing.
+  Writing the log itself never adds, finishes or changes a task. Step b is the only place tasks change, and only on his yes.`;
 
 export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
   const server = new McpServer({ name: "project-dashboard", version: "1.0.0" }, { instructions: INSTRUCTIONS });
@@ -470,7 +496,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "add_task",
     {
       description:
-        "Put a task on the owner's dashboard. This is the main way things get there: when he says 'add this to my dashboard', 'remind me to...', 'I need to...', or 'Sam owes me...', use this. Only the title is needed. People work like tags: put every person the task involves in `people` and it shows on each of their pages. ALWAYS do that: a task that mentions Nina belongs on Nina's page. Add `waiting_on` for anyone who has to do it before he can move ('Sam owes me the numbers', 'Jordan to email Dylan' is waiting_on Jordan with Dylan in people). Use `one_on_one_with` ONLY when he says to put it on his 1:1 list with someone ('add this to my 1:1 with Peter', 'bring this up with Kai at our one-on-one'): nothing goes on a 1:1 list unless he asks. Leave all three out only when the task is simply his own. (As a fallback, a task added with no people whose title names some of his people is tagged with them automatically.) Set due_date whenever he gives any timing ('by Friday', 'next week', 'before the board meeting on the 3rd'): his dashboard lists dated tasks soonest first. Something he told a person he would do ('I told Ned I'd send the list') is his task with that person in people and no waiting_on. Something he asked a person for is waiting_on them, and his dashboard counts the days. Add tags to make it findable (call list_tags first and reuse his tags). Most tasks have NO project: only pass project when he names one or the task is plainly part of an existing project with several tasks. area is the desk (work, personal or side_business) for a task with no project; it defaults to work. Put any detail he gave in notes rather than in a long title.",
+        "Put a task on the owner's dashboard. This is the main way things get there: when he says 'add this to my dashboard', 'remind me to...', 'I need to...', or 'Sam owes me...', use this. Only the title is needed. People work like tags: put every person the task involves in `people` and it shows on each of their pages. ALWAYS do that: a task that mentions Nina belongs on Nina's page. Add `waiting_on` for anyone who has to do it before he can move ('Sam owes me the numbers', 'Jonathan to email Dylan' is waiting_on Jonathan with Dylan in people). Use `one_on_one_with` ONLY when he says to put it on his 1:1 list with someone ('add this to my 1:1 with Peter', 'bring this up with Kai at our one-on-one'): nothing goes on a 1:1 list unless he asks. Leave all three out only when the task is simply his own. (As a fallback, a task added with no people whose title names some of his people is tagged with them automatically.) Set due_date whenever he gives any timing ('by Friday', 'next week', 'before the board meeting on the 3rd'): his dashboard lists dated tasks soonest first. Something he told a person he would do ('I told Ned I'd send the list') is his task with that person in people and no waiting_on. Something he asked a person for is waiting_on them, and his dashboard counts the days. Add tags to make it findable (call list_tags first and reuse his tags). Most tasks have NO project: only pass project when he names one or the task is plainly part of an existing project with several tasks. area is the desk (work, personal or side_business) for a task with no project; it defaults to work. Put any detail he gave in notes rather than in a long title.",
       inputSchema: z.object({
         title: z.string().describe("One short line, starting with a verb"),
         people: who.optional().describe("Everyone the task involves: a person name or id, or a list of them. It shows on each of their pages."),
@@ -511,7 +537,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "update_task",
     {
       description:
-        "Change a task: its title, notes, status (todo, doing, done), due date, the people on it, its tags (the full new list) or its project (null takes it off its project). People: add_people tags more people on it and remove_people takes them off; neither touches anyone else. waiting_on sets exactly who he is waiting on for it (they are tagged if they were not; null means no one), and everyone else stays tagged. The 1:1 list: add_to_one_on_one puts it on the list for his next 1:1 with those people ('put the Maya salary question on my 1:1 with Peter'), remove_from_one_on_one takes it off ('we covered that', 'clear my 1:1 list with Peter' is this for each task on it). board_row moves it on his planning board ('move the NGU agreement to back burner'). block_time sets aside time for it on his dashboard's week ('give the Riley decision 45 minutes Tuesday at 9'); clear_blocks takes its blocks off (to move a block, clear it and give the new time). Get task ids from list_tasks, search or get_person.",
+        "Change a task: its title, notes, status (todo, doing, done), due date, the people on it, its tags (the full new list) or its project (null takes it off its project). People: add_people tags more people on it and remove_people takes them off; neither touches anyone else. waiting_on sets exactly who he is waiting on for it (they are tagged if they were not; null means no one), and everyone else stays tagged. The 1:1 list: add_to_one_on_one puts it on the list for his next 1:1 with those people ('put the Megan salary question on my 1:1 with Peter'), remove_from_one_on_one takes it off ('we covered that', 'clear my 1:1 list with Peter' is this for each task on it). board_row moves it on his planning board ('move the NGU agreement to back burner'). block_time sets aside time for it on his dashboard's week ('give the Jeremy decision 45 minutes Tuesday at 9'); clear_blocks takes its blocks off (to move a block, clear it and give the new time). Get task ids from list_tasks, search or get_person.",
       inputSchema: z.object({
         task_id: z.string(),
         title: z.string().optional(),
@@ -849,7 +875,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "get_daily_log",
     {
       description:
-        "The owner's daily log: a short record of what he worked on each day. Use it for 'what did I do today', 'what did I do yesterday', 'what did I work on last Tuesday', and as the FIRST step of logging his day. With no arguments it is today. For one day it returns log (written_up: the day as it was written up at its end; his_notes: things he said he did, in his words; null when nothing is logged yet) and seen_by_the_dashboard: that day's meetings with who each was with, the tasks added, the tasks finished and the notes filed. Meetings are only known for today and yesterday; for an older day the saved log is the record. For several days ('what did I work on this week', a weekly review) pass from and to (YYYY-MM-DD, both included): it returns the saved logs for those days, newest first. To find the day something happened ('when did I last work on the MBA pathway'), use search instead: it covers the log.",
+        "The owner's daily log: a short record of what he worked on each day. Use it for 'what did I do today', 'what did I do yesterday', 'what did I work on last Tuesday', and as the FIRST step every time he asks to update or add to his log. With no arguments it is today. For one day it returns log (written_up: the day as it was written up; his_notes: things he said he did, in his words; not_yet_in_write_up: the ones he said after the write-up was saved; null when nothing is logged yet) and seen_by_the_dashboard: that day's meetings with who each was with, time_set_aside (time he blocked for his own work, which is NOT a meeting: each has a ref, and once he has said how it went an outcome: 'did the work', 'did not get to it', or 'did something else' with instead saying what), the tasks added, the tasks finished and the notes filed. It also returns project_names (his projects: a write-up heads work on one with exactly that title) and names_used_lately (what the last two weeks of write-ups called things, and on which days), so the same work carries the same name every day. Meetings are known for about the last two weeks; for an older day the saved log is the record. For several days ('what did I work on this week', a weekly review, 'how are my time blocks going') pass from and to (YYYY-MM-DD, both included): it returns the saved logs for those days, newest first, and time_blocks: how many sessions of his own time he did the work in, how many he did not, and how many of those went to something else. To find the day something happened ('when did I last work on the MBA pathway'), use search instead: it covers the log.",
       inputSchema: z.object({
         day: ymd.optional().describe("One day. Defaults to today."),
         from: ymd.optional().describe("First day of a range. Use with to, instead of day."),
@@ -863,12 +889,25 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
       if (from) {
         if (day) throw new InputError("Pass day for one day, or from and to for several, not both.");
         const logs = await listDailyLogs(db, { from, to: to ?? today, limit: 100 });
-        return { from, to: to ?? today, days_logged: logs.length, logs: logs.map(logBrief), url: link("/log") };
+        const tally = await blockTally(db, from, to ?? today);
+        return {
+          from,
+          to: to ?? today,
+          days_logged: logs.length,
+          logs: logs.map(logBrief),
+          // Only sessions he answered for are counted.
+          time_blocks: tally.kept + tally.not_kept
+            ? { did_the_work: tally.kept, did_not: tally.not_kept, of_those_did_something_else: tally.something_else, hours_worked: Math.round(tally.minutes_kept / 6) / 10, hours_not: Math.round(tally.minutes_not_kept / 6) / 10 }
+            : "None answered for in these days.",
+          url: link("/log"),
+        };
       }
       const d = day ?? today;
       const saved = await getDailyLog(db, d);
       const facts = await dayFacts(db, d);
       const names = await personNames();
+      const projects = (await listProjects(db, {})).filter((p) => p.status !== "done");
+      const lately = await logNames(db, addDays(d, -14), addDays(d, -1));
       return {
         day: d,
         weekday: new Date(`${d}T12:00:00Z`).toLocaleDateString("en-US", { timeZone: "UTC", weekday: "long" }),
@@ -877,11 +916,28 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
           meetings: facts.meetings_known
             ? facts.meetings.map((e) => ({ ...eventBrief(e, names, timezone), with: e.with.length ? e.with : undefined, day: undefined, url: undefined }))
             : "Not kept this far back. The saved log is the record of that day's meetings.",
+          // His own time, not meetings. Pass ref to save_daily_log time_blocks to record how it went.
+          time_set_aside: facts.own_time.map((o) => ({
+            ref: o.ref,
+            // Only on a session whose block or calendar entry was moved or taken off since: pass it with the ref.
+            day: o.live ? undefined : o.day,
+            time: `${clockOf(o.start_min)} to ${clockOf(o.start_min + o.minutes)}`,
+            minutes: o.minutes,
+            title: o.title,
+            made_in: o.source === "dashboard" ? "his dashboard" : "his calendar",
+            task_finished: o.task_done || undefined,
+            outcome: outcomeOf(o) ?? undefined,
+            instead: o.instead || undefined,
+          })),
           tasks_finished: facts.tasks_finished.map(taskBrief),
           tasks_added: facts.tasks_added.map(taskBrief),
           notes_filed: facts.notes_filed.map((e) => ({ kind: e.kind, title: e.title || undefined, people: e.people.length ? e.people.map((p) => p.name) : undefined, project: e.project_title ?? undefined })),
         },
-        url: link("/log"),
+        // Work on one of these goes under a heading that is exactly its title, the same every day.
+        project_names: projects.map((p) => p.title),
+        // What the write-ups of the two weeks before called things. The same work keeps the same name.
+        names_used_lately: lately.length ? lately : undefined,
+        url: link(`/log#${d}`),
       };
     }),
   );
@@ -890,18 +946,38 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "save_daily_log",
     {
       description:
-        "Write to the owner's daily log. It has two uses, and they can be combined. (1) add: something he says he did or worked on, at any time of day ('log that I finished the budget draft', 'add to my log that I updated Dr. Ross on the MBA pathway', or his answer to 'anything else you worked on today?'). One short line for each thing, close to his own words. When he also gives the detail of a conversation, file that detail as a note with the person (add_entry) and keep the log line short. It is added to that day's notes and never replaces anything; the same line is not added twice. (2) body: the day written up at its end (markdown, short): the meetings he had and who with, the mail he sent, the tasks he finished and added. It REPLACES what was written up before for that day, so always call get_daily_log first and keep what still holds; his notes are never touched by it. day defaults to today; pass it to log an earlier day ('add to yesterday's log that...'). A day that has not happened yet is refused. This only records what he did: it does not add or finish tasks.",
+        "Write to the owner's daily log. Call get_daily_log first, every time. Three things can be written, in one call: (1) add: something he says he did or worked on, at any time of day ('log that I finished the budget draft', 'add to my log that I updated Dr. Ross on the MBA pathway', or his answer to 'anything else you worked on today?'). One short line for each thing, close to his own words. When he also gives the detail of a conversation, file that detail as a note with the person (add_entry) and keep the log line short. It is added to that day's notes and never replaces anything; the same line is not added twice. (2) body: the day written up (markdown, short): one line for each thing he worked on, with the meetings, the mail he sent, the tasks he finished and his own notes about the same thing put together, so nothing is listed twice; work on one of his projects under a heading that is exactly the project's title. It REPLACES what was written up before for that day, so keep what still holds. His notes are kept as he said them, but a saved write-up is taken to cover all of them (including any passed in add in the same call) and his dashboard stops listing them separately, so fold every one in. A note added without body shows under the write-up until the day is written up again, so pass both. day defaults to today; pass it to log an earlier day ('add to yesterday's log that...'). A day that has not happened yet is refused. (3) time_blocks: how time he had set aside went ('I did the pricing block', 'I never got to the report', 'I skipped the newsletter and did the budget instead'). Each is { ref, kept, instead }: ref from get_daily_log's time_set_aside; kept true when he did the work in that time; kept false when he did not get to it; kept false with instead (what he did, in his words) when he used the time for something else. It is how his blocks are counted over time and how his dashboard marks each one; record only what he said or what the day plainly shows, never a guess. This only records what he did: it does not add or finish tasks.",
       inputSchema: z.object({
         add: z.union([z.string(), z.array(z.string())]).optional().describe("One thing he said he did, or a list of them. One short line each."),
         body: z.string().optional().describe("The day written up, in markdown. Replaces the earlier write-up for that day."),
+        time_blocks: z
+          .array(
+            z.object({
+              ref: z.string().describe("The ref from time_set_aside"),
+              kept: z.boolean().describe("true: he did the work in that time. false: he did not."),
+              instead: z.string().max(200).optional().describe("Only with kept false: what he did in that time instead, one short line in his words. Leave out when he simply did not get to it."),
+              day: ymd.optional().describe("Only when the time_set_aside entry carries a day (its block was moved or taken off since): that day."),
+            }),
+          )
+          .max(30)
+          .optional()
+          .describe("How time he had set aside went."),
         day: ymd.optional().describe("Defaults to today."),
       }),
     },
-    safe(async ({ add, body, day }) => {
+    safe(async ({ add, body, time_blocks, day }) => {
       const lines = add === undefined ? undefined : [add].flat().map((x) => x.trim()).filter(Boolean);
-      const saved = await saveDailyLog(ctx, { day, body, add: lines?.length ? lines : undefined });
+      if (body === undefined && !lines?.length && !time_blocks?.length) throw new InputError("Pass add, body or time_blocks.");
+      const kept: string[] = [];
+      for (const b of time_blocks ?? []) {
+        const r = await saveBlockResult(ctx, b);
+        const how = outcomeOf(r);
+        kept.push(`“${r.title}”: ${how === "did something else" ? `did something else (${r.instead})` : how}`);
+      }
+      const saved = body !== undefined || lines?.length ? await saveDailyLog(ctx, { day, body, add: lines?.length ? lines : undefined }) : null;
       const what = [body !== undefined && "wrote up the day", lines?.length && `added ${lines.length === 1 ? "a note" : `${lines.length} notes`}`].filter(Boolean).join(" and ");
-      return { saved: true, log: logBrief(saved), receipt: `Daily log for ${saved.day}: ${what}.`, url: link("/log") };
+      const receipt = [saved && `Daily log for ${saved.day}: ${what}.`, kept.length && `Time set aside: ${kept.join(", ")}.`].filter(Boolean).join(" ");
+      return { saved: true, log: saved ? logBrief(saved) : undefined, receipt, url: link("/log") };
     }),
   );
 
@@ -953,7 +1029,7 @@ export function buildServer(ctx: Ctx, ownerEmail = "", appUrl = ""): McpServer {
     "list_calendar",
     {
       description:
-        "The owner's meetings from the calendars connected to the dashboard (work, personal and side business), in order. Use it for 'what's on my calendar', 'when is my next 1:1 with Kai', or to plan around his day. Defaults to today through the next 7 days; pass from and to (YYYY-MM-DD) for another range, up to 4 weeks ahead. An event that is a 1:1 with someone the owner meets regularly names them in one_on_one_with. Read only: this cannot create or change events. It also returns his blocks: time he set aside on his dashboard for tasks (made with update_task block_time). An empty list with connected false means no calendar is connected yet (Settings, Connections).",
+        "The owner's meetings from the calendars connected to the dashboard (work, personal and side business), in order. Use it for 'what's on my calendar', 'when is my next 1:1 with Kai', or to plan around his day. Defaults to today through the next 7 days; pass from and to (YYYY-MM-DD) for another range, up to 4 weeks ahead. An event that is a 1:1 with someone the owner meets regularly names them in one_on_one_with. An event marked by_himself has no one else on it: it is time he set aside for his own work (or an appointment), not a meeting. Read only: this cannot create or change events. It also returns his blocks: time he set aside on his dashboard for tasks (made with update_task block_time). An empty list with connected false means no calendar is connected yet (Settings, Connections).",
       inputSchema: z.object({ from: ymd.optional(), to: ymd.optional(), area: areaList }),
       annotations: { readOnlyHint: true },
     },

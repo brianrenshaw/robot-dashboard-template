@@ -5,6 +5,7 @@
 // them gets a job, and what needs doing sits on a board of rows he moves things between.
 //
 //   rowOf        which row of the board a task is in
+//   needsPlace   whether a task is shown on the board at all
 //   openTimes    the next stretches of a week that fit a block of a given length
 //   readWhen     "thu 9 45m", "tomorrow 1:30pm 1h", "fri 2": the one-line way to set a block
 //   layOut       side-by-side placement for things on a day that overlap
@@ -18,6 +19,17 @@ export const ROWS: Exclude<Row, "new">[] = ["todo", "waiting", "back", "figure"]
 export function rowOf(t: Pick<TaskItem, "board" | "people">): Row {
   if (t.board) return t.board;
   return t.people.some((p) => p.waiting) ? "waiting" : "new";
+}
+
+/**
+ * Whether a task still needs a place, which is what the board is for. One in a project is kept
+ * with its project, and one with time set aside (today or later) is on the calendar; showing
+ * either on the board as well was "a bunch of noise" (2026-11-16). A block whose day has passed
+ * no longer counts, so a task he did not get to comes back.
+ */
+export function needsPlace(t: Pick<TaskItem, "id" | "project_id">, blocks: { task_id: string; day: string }[], today: string): boolean {
+  if (t.project_id) return false;
+  return !blocks.some((b) => b.task_id === t.id && b.day >= today);
 }
 
 /** Tasks in a row, in his order. */
@@ -170,8 +182,31 @@ export function isCopyOfBlock(e: { day: string; start: number; title: string }, 
   return blocks.some((b) => b.day === e.day && Math.abs(b.start_min - e.start) <= 5 && plainTitle(b.title) === t);
 }
 
-/** A title reduced to what has to match: lower case, no "work on", no punctuation. */
-export const plainTitle = (s: string) => s.toLowerCase().replace(/^\s*work(ing)? on\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+/** A title reduced to what has to match: lower case, "&" as "and", no "work on", no punctuation. */
+export const plainTitle = (s: string) => s.toLowerCase().replace(/&/g, " and ").replace(/^\s*work(ing)? on\s+/, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * The project a calendar entry is his time for. Its title is the project's name, give or take
+ * "Work on" and punctuation. When `loose` (an entry with no one else on it), it may also be the
+ * project's name with words added or left off at the end: "Work on Price and Fee Review"
+ * and "Price and Fee Review Prep: slides" are both time for "Price and Fee Review
+ * Prep" (2026-11-19: renaming the project should not cut it off from the blocks already made).
+ * A loose match needs at least three words in common and exactly one project that fits, so it
+ * never guesses between two.
+ */
+export function projectForTitle<P extends { title: string }>(title: string, projects: P[], loose = false): P | null {
+  const t = plainTitle(title);
+  if (!t) return null;
+  const exact = projects.filter((p) => plainTitle(p.title) === t);
+  if (exact.length) return exact.length === 1 ? exact[0]! : null;
+  if (!loose) return null;
+  const near = projects.filter((p) => {
+    const q = plainTitle(p.title);
+    const [short, long] = q.length <= t.length ? [q, t] : [t, q];
+    return short.split(" ").length >= 3 && long.startsWith(`${short} `);
+  });
+  return near.length === 1 ? near[0]! : null;
+}
 
 /** "45 min", "1 h", "1 h 30 min". */
 export const lengthText = (n: number) => (n < 60 ? `${n} min` : n % 60 ? `${Math.floor(n / 60)} h ${n % 60} min` : `${n / 60} h`);

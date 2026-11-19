@@ -12,21 +12,35 @@
 // Drag a card onto the week (or click it) and a small panel asks when and for how long: type
 // it ("thu 9 45m") or tap a length and one of the open times; the block is previewed on the
 // calendar as it changes. Blocks are saved on the dashboard; the site never writes his calendar.
+// The board holds only what still needs a place: a task in a project, or one with time already
+// set aside, is left off unless he asks for everything (2026-11-16: seeing them there as well
+// was "a bunch of noise"). A blocked task is on the calendar; a project's tasks are in the project.
 // A calendar entry named after a project ("Work on Pricing Review") is his own block
-// for that project, and its tasks know it.
+// for that project: clicking it lists the project's tasks to check off.
 // Clicking a meeting opens a panel for it: who it is with, tasks for it (and, for a 1:1, that
 // person's 1:1 list) to check off, a line to add a task for it, and its note, one per meeting.
+// Time he set aside for himself (a block here, or a calendar entry with no one else on it) is
+// not a meeting, and is drawn as his own time. Once it has begun, its panel asks "Did you get
+// to it?", and the answer is kept (block_results) so he can see over time whether he goes
+// through with his blocks. There are three answers, and each looks different on the week
+// (2026-11-19: "we need some different identifications if i got it done, didn't get it done
+// or not... i should also have the freedom to say if i did not do it but did something else"):
+//   Yes              solid, with a check
+//   No               an outline, with a cross
+//   Something else   an outline, with an arrow and what he did instead
+// and one that has begun with no answer yet carries an open ring. A session he answered for
+// stays on the week after its block is taken off or its calendar entry is moved or deleted.
 // The arithmetic (rows, open times, reading a typed line, overlaps) is in lib/plan.ts.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
-  useAddBlock, useAddTask, useDeleteBlock, useEditTask, useSaveMeetingNote, useMoveBlock, useSaveSettings, useSettings,
-  type BoardRow, type HomeData, type ProjectCard, type TaskItem,
+  useAddBlock, useAddTask, useDeleteBlock, useEditTask, useSaveBlockResult, useSaveMeetingNote, useMoveBlock, useSaveSettings, useSettings,
+  type BlockResult, type BoardRow, type HomeData, type ProjectCard, type TaskItem,
 } from "../api";
 import { linkProps, useMailLinks } from "../lib/mail";
-import { ROWS, clockText, inOrder, isCopyOfBlock, layOut, lengthText, meetingTitle, openTimes, orderBetween, plainTitle, readWhen, rowOf, type Row, type When } from "../lib/plan";
+import { ROWS, clockText, inOrder, isCopyOfBlock, layOut, lengthText, meetingTitle, needsPlace, openTimes, orderBetween, projectForTitle, readWhen, rowOf, type Row, type When } from "../lib/plan";
 import { addDaysYmd, dueLabel, fmtWeekday, minuteOfDay } from "../lib/time";
 import { Sigil, usePref, type Scope } from "../spaces";
 import { TextArea, TextInput } from "./fields";
@@ -35,7 +49,15 @@ import { Icon } from "./ui";
 const LENGTHS = [15, 30, 45, 60, 90, 120];
 const DEFAULT_NAMES: Record<BoardRow, string> = { todo: "To do", waiting: "Waiting to hear back", back: "Back burner", figure: "To figure out" };
 
-interface Ev { id: string; day: string; start: number; end: number; title: string; url: string | null; project: ProjectCard | null; area: string; oneOnOne: string | null; location: string }
+/**
+ * Something on the week that is not a block of an open task: a calendar entry, or (`session`
+ * set) a session of his own time that only has its panel's question: a block whose task is
+ * checked off, or one he answered for whose block or calendar entry has since gone.
+ */
+interface Ev { id: string; day: string; start: number; end: number; title: string; url: string | null; project: ProjectCard | null; area: string; oneOnOne: string | null; location: string; guests: number | null; session?: string }
+/** How a session of his own time went. "open": it has begun and he has not said. */
+type Outcome = "kept" | "skipped" | "swapped" | "open" | null;
+const OUTCOME_TEXT: Record<Exclude<Outcome, null>, string> = { kept: "You did the work", skipped: "You did not get to it", swapped: "You did something else", open: "Did you get to it?" };
 interface Draft extends When { taskId: string; blockId?: string; cal?: Ev }
 
 /** Redraw once a minute, so the now-line and the open times stay true. */
@@ -60,6 +82,7 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
   const [view, setView] = usePref<"week" | "day">("plan-view", narrow ? "day" : "week");
   const [shown, setShown] = useState(days.includes(today) ? today : days[0]!);
   const [boardShown, setBoardShown] = usePref("plan-board", true);
+  const [everything, setEverything] = usePref("plan-everything", false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [meeting, setMeeting] = useState<Ev | null>(null);
   const [gone, setGone] = useState<{ id: string; title: string } | null>(null);
@@ -70,18 +93,18 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
   const addBlock = useAddBlock();
   const moveBlock = useMoveBlock();
   const delBlock = useDeleteBlock();
+  const saveResult = useSaveBlockResult();
 
   // ---------- what is on the page ----------
   const tasks = data.open_tasks.filter((t) => inScope(t.project_area));
   const byId = new Map(tasks.map((t) => [t.id, t]));
-  const projectByName = new Map(data.projects.map((p) => [plainTitle(p.title), p]));
   const blocks = data.blocks.filter((b) => inScope(b.area) && days.includes(b.day));
   // A block his chatbot copied to his calendar comes back with the calendar; it is shown once, as the block.
   const events: Ev[] = data.calendar
     .filter((e) => inScope(e.area) && !e.all_day && days.includes(e.day))
     .map((e) => {
       const start = minuteOfDay(e.starts_at);
-      return { id: e.id, day: e.day, start, end: e.ends_at ? Math.max(start + 15, minuteOfDay(e.ends_at)) : start + 30, title: meetingTitle(e.title), url: e.url, project: projectByName.get(plainTitle(e.title)) ?? null, area: e.area, oneOnOne: e.person_id, location: e.location };
+      return { id: e.id, day: e.day, start, end: e.ends_at ? Math.max(start + 15, minuteOfDay(e.ends_at)) : start + 30, title: meetingTitle(e.title), url: e.url, project: projectForTitle(e.title, data.projects, e.guests === 0 && !e.person_id), area: e.area, oneOnOne: e.person_id, location: e.location, guests: e.guests };
     })
     .filter((e) => !isCopyOfBlock(e, data.blocks));
   const allDay = data.calendar.filter((e) => inScope(e.area) && e.all_day && days.includes(e.day));
@@ -92,11 +115,32 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
   const tasksFor = (e: Ev) => tasks.filter((t) => t.meeting_ref === e.id || (!!e.oneOnOne && t.people.some((p) => p.id === e.oneOnOne && p.one_on_one)));
   /** His own calendar block for a task's project this week, if he made one. */
   const calOf = (t: TaskItem) => (t.project_id ? events.find((e) => e.project?.id === t.project_id) : undefined);
+  /** His answer for a session of his own time on a day, if he gave one. */
+  const resultOf = (ref: string, day: string): BlockResult | undefined => data.block_results.find((x) => x.ref === ref && x.day === day);
+  const begun = (day: string, start: number) => day < today || (day === today && start <= nowMin);
+  /** How a session went; "open" once it has begun with no answer. */
+  const outcomeOf = (ref: string, day: string, start: number): Outcome => {
+    const r = resultOf(ref, day);
+    if (!r) return begun(day, start) ? "open" : null;
+    return r.kept === 1 ? "kept" : r.instead.trim() ? "swapped" : "skipped";
+  };
+  const projectTasks = (e: Ev) => (e.project ? tasks.filter((t) => t.project_id === e.project!.id) : []);
+  /** A calendar entry that is his own time: his project's block, or one with no one else on it. */
+  const isOwn = (e: Ev) => !!e.session || projectTasks(e).length > 0 || (e.guests === 0 && !e.oneOnOne && peopleIn(e.id).length === 0);
+  const refOf = (e: Ev) => e.session ?? `calendar:${e.id}`;
+  // Sessions he answered for whose block or calendar entry is no longer on that day (taken
+  // off, moved, deleted): drawn from his answer's own copy, so the week keeps them.
+  const liveRefs = new Set([...data.blocks.map((b) => `block:${b.id}|${b.day}`), ...data.calendar.map((e) => `calendar:${e.id}|${e.day}`)]);
+  const past: Ev[] = data.block_results
+    .filter((r) => days.includes(r.day) && !liveRefs.has(`${r.ref}|${r.day}`) && inScope("work"))
+    .map((r) => ({ id: `was:${r.ref}|${r.day}`, day: r.day, start: r.start_min, end: r.start_min + Math.max(15, r.minutes), title: meetingTitle(r.title), url: null, project: null, area: "work", oneOnOne: null, location: "", guests: 0, session: r.ref }));
+  // The board: what still needs a place. Project tasks and ones with time set aside are left off.
+  const placed = tasks.filter((t) => !needsPlace(t, data.blocks, today));
   const rows: Record<Row, TaskItem[]> = { new: [], todo: [], waiting: [], back: [], figure: [] };
-  for (const t of inOrder(tasks)) rows[rowOf(t)].push(t);
+  for (const t of inOrder(everything ? tasks : tasks.filter((x) => !placed.includes(x)))) rows[rowOf(t)].push(t);
 
-  const START = Math.min(8 * 60, ...events.map((e) => Math.floor(e.start / 60) * 60), ...blocks.map((b) => Math.floor(b.start_min / 60) * 60));
-  const END = Math.max(17 * 60, ...events.map((e) => Math.ceil(e.end / 60) * 60), ...blocks.map((b) => Math.ceil((b.start_min + b.minutes) / 60) * 60));
+  const START = Math.min(8 * 60, ...[...events, ...past].map((e) => Math.floor(e.start / 60) * 60), ...blocks.map((b) => Math.floor(b.start_min / 60) * 60));
+  const END = Math.max(17 * 60, ...[...events, ...past].map((e) => Math.ceil(e.end / 60) * 60), ...blocks.map((b) => Math.ceil((b.start_min + b.minutes) / 60) * 60));
   const HOUR = view === "day" ? 56 : 34;
   const busy = (day: string, exceptBlock?: string) => [
     ...events.filter((e) => e.day === day).map((e) => ({ start: e.start, end: e.end })),
@@ -248,7 +292,10 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
   const cols = view === "day" ? [shown] : days;
   const y = (min: number) => ((min - START) / 60) * HOUR;
   const height = ((END - START) / 60) * HOUR;
-  const ownCal = (e: Ev) => e.project && tasks.some((t) => t.project_id === e.project!.id);
+  const ownCal = (e: Ev) => projectTasks(e).length > 0;
+  /** The mark a session of his own time wears, and the line under its title when he did something else. */
+  const badge = (o: Outcome) => o && <i className="plan-st" aria-hidden>{o === "kept" ? "✓" : o === "skipped" ? "✕" : o === "swapped" ? "→" : ""}</i>;
+  const sayOutcome = (o: Outcome, instead?: string) => (o ? `${OUTCOME_TEXT[o]}${o === "swapped" && instead ? `: ${instead}` : ""}` : undefined);
 
   const card = (t: TaskItem) => {
     const b = blockOf(t.id);
@@ -317,7 +364,7 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
               </div>
               {cols.map((day) => {
                 const items = layOut([
-                  ...events.filter((e) => e.day === day).map((e) => ({ kind: "ev" as const, id: e.id, start: e.start, end: e.end, e })),
+                  ...[...events, ...past].filter((e) => e.day === day).map((e) => ({ kind: "ev" as const, id: e.id, start: e.start, end: e.end, e })),
                   ...blocks.filter((b) => b.day === day).map((b) => ({ kind: "blk" as const, id: b.id, start: b.start_min, end: b.start_min + b.minutes, b })),
                 ]);
                 return (
@@ -329,33 +376,39 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
                       const tall = style.height > 32;
                       if (it.kind === "blk") {
                         const b = it.b;
+                        const o = b.id.startsWith("new-") ? null : outcomeOf(`block:${b.id}`, b.day, b.start_min);
+                        const instead = resultOf(`block:${b.id}`, b.day)?.instead;
+                        // A block whose task is checked off has nothing left to move: it opens only the question.
+                        const open = () =>
+                          byId.has(b.task_id)
+                            ? setDraft({ taskId: b.task_id, blockId: b.id, day: b.day, start: b.start_min, minutes: b.minutes })
+                            : (setDraft(null), setMeeting({ id: `blk:${b.id}`, day: b.day, start: b.start_min, end: b.start_min + b.minutes, title: b.title, url: null, project: null, area: b.area, oneOnOne: null, location: "", guests: 0, session: `block:${b.id}` }));
                         return (
-                          <button key={b.id} type="button" className={`plan-blk${draft?.blockId === b.id ? " editing" : ""}${b.status === "done" ? " done" : ""}`} style={style} onClick={() => setDraft({ taskId: b.task_id, blockId: b.id, day: b.day, start: b.start_min, minutes: b.minutes })}>
+                          <button key={b.id} type="button" data-ev={byId.has(b.task_id) ? undefined : `blk:${b.id}`} className={`plan-blk${draft?.blockId === b.id ? " editing" : ""}${b.status === "done" ? " done" : ""}${o ? ` ${o}` : ""}`} style={style} title={sayOutcome(o, instead)} onClick={open}>
                             <b>{b.title}</b>
-                            {tall && <small>{clockText(b.start_min).replace(/ [AP]M$/, "")}–{clockText(b.start_min + b.minutes)}</small>}
+                            {tall && (o === "swapped" && instead ? <small className="inst">→ {instead}</small> : <small>{clockText(b.start_min).replace(/ [AP]M$/, "")}–{clockText(b.start_min + b.minutes)}</small>)}
+                            {badge(o)}
                           </button>
                         );
                       }
                       const e = it.e;
-                      const mine = ownCal(e);
-                      const inner = (
-                        <>
-                          <b>{e.title}</b>
-                          {tall && <small>{clockText(e.start).replace(/ [AP]M$/, "")}–{clockText(e.end)}</small>}
-                        </>
-                      );
-                      if (mine) {
-                        const t = tasks.find((x) => x.project_id === e.project!.id)!;
+                      if (isOwn(e)) {
+                        // His own time: his block for a project (it opens the project's tasks), or an entry with no one else on it.
+                        const o = outcomeOf(refOf(e), e.day, e.start);
+                        const instead = resultOf(refOf(e), e.day)?.instead;
                         return (
-                          <button key={e.id} type="button" className={`plan-ev mine${draft?.cal?.id === e.id ? " lit" : ""}`} style={style} onClick={() => setDraft({ taskId: t.id, cal: e, day: e.day, start: e.start, minutes: e.end - e.start })}>
-                            {inner}
+                          <button key={e.id} type="button" data-ev={e.id} className={`plan-ev mine${draft?.cal?.id === e.id || meeting?.id === e.id ? " lit" : ""}${o ? ` ${o}` : ""}`} style={style} title={sayOutcome(o, instead)} onClick={() => { setDraft(null); setMeeting(e); }}>
+                            <b>{e.title}</b>
+                            {tall && (o === "swapped" && instead ? <small className="inst">→ {instead}</small> : <small>{clockText(e.start).replace(/ [AP]M$/, "")}–{clockText(e.end)}</small>)}
+                            {badge(o)}
                           </button>
                         );
                       }
                       const carries = tasksFor(e).length > 0 || !!noteFor(e.id)?.body.trim();
                       return (
                         <button key={e.id} type="button" data-ev={e.id} className={`plan-ev${carries ? " has" : ""}${meeting?.id === e.id ? " lit" : ""}`} style={style} title={carries ? "Has tasks or a note" : undefined} onClick={() => { setDraft(null); setMeeting(e); }}>
-                          {inner}
+                          <b>{e.title}</b>
+                          {tall && <small>{clockText(e.start).replace(/ [AP]M$/, "")}–{clockText(e.end)}</small>}
                         </button>
                       );
                     })}
@@ -375,9 +428,16 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
         <section className="plan-boardwrap">
           <div className="plan-boardhead">
             <h2>Board</h2>
-            <button type="button" className="press" aria-expanded={boardShown} onClick={() => setBoardShown(!boardShown)}>
-              {boardShown ? "Hide board" : "Show board"}
-            </button>
+            <div>
+              {boardShown && placed.length > 0 && (
+                <button type="button" className="press" aria-pressed={everything} title="Tasks in a project, and tasks with time already set aside, are left off the board" onClick={() => setEverything(!everything)}>
+                  {everything ? "Hide project and blocked tasks" : "Show all tasks"}
+                </button>
+              )}
+              <button type="button" className="press" aria-expanded={boardShown} onClick={() => setBoardShown(!boardShown)}>
+                {boardShown ? "Hide board" : "Show board"}
+              </button>
+            </div>
           </div>
           <div className={`plan-boardfold${boardShown ? "" : " shut"}`}>
             <div>
@@ -400,8 +460,12 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
           key={meeting.id}
           e={meeting}
           people={peopleIn(meeting.id)}
-          tasks={tasksFor(meeting)}
+          project={ownCal(meeting) ? meeting.project : null}
+          tasks={meeting.session ? [] : ownCal(meeting) ? inOrder(projectTasks(meeting)) : tasksFor(meeting)}
           note={noteFor(meeting.id)?.body ?? ""}
+          // His own time (his project's block, or an entry with no one else on it), once it has begun.
+          answer={isOwn(meeting) && begun(meeting.day, meeting.start) ? resultOf(refOf(meeting), meeting.day) ?? null : undefined}
+          onAnswer={(a) => saveResult.mutate({ ref: refOf(meeting), day: meeting.day, ...a })}
           onClose={() => setMeeting(null)}
           onDone={(t) => markDone(t)}
         />,
@@ -418,6 +482,8 @@ export function Planner({ data, scope }: { data: HomeData; scope: Scope }) {
           names={names}
           clash={clashWith(draft)}
           opens={opens(draft.minutes, draft.blockId)}
+          answer={(() => { const b = blocks.find((x) => x.id === draft.blockId); return b && !b.id.startsWith("new-") && begun(b.day, b.start_min) ? resultOf(`block:${b.id}`, b.day) ?? null : undefined; })()}
+          onAnswer={(a) => { const b = blocks.find((x) => x.id === draft.blockId); if (b) saveResult.mutate({ ref: `block:${b.id}`, day: b.day, ...a }); }}
           onCommit={commit}
           onDelete={() => { if (draft.blockId) delBlock.mutate(draft.blockId); setDraft(null); }}
           onDone={() => markDone(byId.get(draft.taskId)!)}
@@ -530,7 +596,7 @@ function sourceLine(t: TaskItem): string {
 
 function BlockPanel(p: {
   draft: Draft; setDraft: (d: Draft | null) => void; task: TaskItem; today: string; weekStart: string; row: Row; names: Record<BoardRow, string>;
-  clash: string | null; opens: { day: string; start: number }[]; onCommit: () => void; onDelete: () => void; onDone: () => void; onMove: (row: Row) => void;
+  clash: string | null; opens: { day: string; start: number }[]; answer?: BlockResult | null; onAnswer: (a: Answer) => void; onCommit: () => void; onDelete: () => void; onDone: () => void; onMove: (row: Row) => void;
 }) {
   const { draft, setDraft, task } = p;
   const ref = useRef<HTMLDivElement>(null);
@@ -652,6 +718,7 @@ function BlockPanel(p: {
           )}
         </>
       )}
+      {p.answer !== undefined && <Kept answer={p.answer} onSet={p.onAnswer} />}
       <div className="actions">
         <button type="button" className="go press" onClick={p.onCommit}>
           {draft.cal ? "Done" : draft.blockId ? "Move it" : "Block it"}
@@ -678,9 +745,72 @@ function BlockPanel(p: {
   );
 }
 
-// ---------- a meeting: its tasks and its note ----------
+// ---------- how time he set aside went ----------
 
-function MeetingPanel({ e, people, tasks, note, onClose, onDone }: { e: Ev; people: { id: string; name: string }[]; tasks: TaskItem[]; note: string; onClose: () => void; onDone: (t: TaskItem) => void }) {
+/** What the question's buttons send: he did the work, he did not, or what he did instead; null takes the answer back. */
+interface Answer { kept: boolean | null; instead?: string }
+
+/**
+ * Asked once the time has begun. Three answers: Yes, No, or Something else, which opens a line
+ * for what he did in that time instead (saved on Enter, or when the panel closes). Tapping the
+ * chosen answer takes it back.
+ */
+function Kept({ answer, onSet }: { answer: BlockResult | null; onSet: (a: Answer) => void }) {
+  const kept = answer ? answer.kept === 1 : null;
+  const said = answer?.kept === 0 ? answer.instead : "";
+  const [other, setOther] = useState(!!said);
+  const [text, setText] = useState(said);
+  // What to save if the panel closes while he is still typing.
+  const pending = useRef<string | null>(null);
+  const live = useRef(onSet);
+  live.current = onSet;
+  const save = () => {
+    const v = text.trim();
+    pending.current = null;
+    if (v && v !== said) onSet({ kept: false, instead: v });
+  };
+  useEffect(() => () => { if (pending.current?.trim()) live.current({ kept: false, instead: pending.current.trim() }); }, []);
+  const pick = (which: "yes" | "no" | "other") => {
+    pending.current = null;
+    if (which === "yes") { setOther(false); setText(""); return onSet(kept === true ? { kept: null } : { kept: true }); }
+    if (which === "no") { const on = kept === false && !said && !other; setOther(false); setText(""); return onSet(on ? { kept: null } : { kept: false, instead: "" }); }
+    if (other) { setOther(false); setText(""); if (said) onSet({ kept: null }); return; }
+    setOther(true);
+  };
+  return (
+    <div className="row kept">
+      <div className="lbl">Did you get to it?</div>
+      <button type="button" className="chip press" aria-pressed={kept === true && !other} onClick={() => pick("yes")}>
+        Yes
+      </button>
+      <button type="button" className="chip press" aria-pressed={kept === false && !said && !other} onClick={() => pick("no")}>
+        No
+      </button>
+      <button type="button" className="chip press" aria-pressed={other} onClick={() => pick("other")}>
+        Something else
+      </button>
+      {other && (
+        <TextInput
+          autoFocus
+          value={text}
+          onChange={(e) => { setText(e.target.value); pending.current = e.target.value; }}
+          onEnter={save}
+          onBlur={save}
+          placeholder="What did you do instead?"
+          aria-label="What you did in that time instead"
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------- a meeting: its tasks and its note ----------
+// Also the panel for his own block for a project (`project` given): the project's tasks to
+// check off and a line to add one to it. That is his own time, not a meeting, so it has no note.
+// And for a session that is only its question (`e.session`: a block whose task is checked off,
+// or one whose block or calendar entry has gone): the title, the time and "Did you get to it?".
+
+function MeetingPanel({ e, people, project, tasks, note, answer, onAnswer, onClose, onDone }: { e: Ev; people: { id: string; name: string }[]; project: ProjectCard | null; tasks: TaskItem[]; note: string; answer?: BlockResult | null; onAnswer: (a: Answer) => void; onClose: () => void; onDone: (t: TaskItem) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const addTask = useAddTask();
   const saveNote = useSaveMeetingNote();
@@ -729,8 +859,9 @@ function MeetingPanel({ e, people, tasks, note, onClose, onDone }: { e: Ev; peop
   const add = () => {
     const v = title.trim();
     if (!v) return;
+    if (project) addTask.mutate({ title: v, project_id: project.id });
     // Tagged with his people in the meeting; for a 1:1, on that person's 1:1 list too.
-    addTask.mutate({ title: v, area: e.area as TaskItem["project_area"], meeting_ref: e.id, people: people.map((p) => ({ person_id: p.id, one_on_one: p.id === e.oneOnOne })) });
+    else addTask.mutate({ title: v, area: e.area as TaskItem["project_area"], meeting_ref: e.id, people: people.map((p) => ({ person_id: p.id, one_on_one: p.id === e.oneOnOne })) });
     setTitle("");
   };
   return (
@@ -750,6 +881,12 @@ function MeetingPanel({ e, people, tasks, note, onClose, onDone }: { e: Ev; peop
             ))}
           </>
         )}
+        {project && (
+          <>
+            {" · "}
+            <Link to={`/projects/${project.id}`} className="press">Open project</Link>
+          </>
+        )}
         {e.url && (
           <>
             {" · "}
@@ -757,14 +894,21 @@ function MeetingPanel({ e, people, tasks, note, onClose, onDone }: { e: Ev; peop
           </>
         )}
       </div>
-      <div className="mtasks">
-        {tasks.map((t) => (
-          <MeetingTask key={t.id} t={t} onDone={() => onDone(t)} />
-        ))}
-        <TextInput value={title} onChange={(ev) => setTitle(ev.target.value)} onEnter={add} placeholder="Add a task for this meeting" aria-label="Add a task for this meeting" />
-      </div>
-      <div className="lbl">Notes{saved === "saving" ? " · saving" : saved === "saved" && text === note ? " · saved" : ""}</div>
-      <TextArea value={text} onChange={(ev) => { setText(ev.target.value); setSaved(""); }} onBlur={save} onSubmit={save} minRows={3} placeholder="What was said, what was decided" aria-label="Notes for this meeting" />
+      {!e.session && (
+        <div className="mtasks">
+          {tasks.map((t) => (
+            <MeetingTask key={t.id} t={t} onDone={() => onDone(t)} />
+          ))}
+          <TextInput value={title} onChange={(ev) => setTitle(ev.target.value)} onEnter={add} placeholder={project ? "Add a task to this project" : answer !== undefined || e.guests === 0 ? "Add a task for this block" : "Add a task for this meeting"} aria-label={project ? "Add a task to this project" : "Add a task for this"} />
+        </div>
+      )}
+      {answer !== undefined && <Kept answer={answer} onSet={onAnswer} />}
+      {!project && !e.session && (
+        <>
+          <div className="lbl">Notes{saved === "saving" ? " · saving" : saved === "saved" && text === note ? " · saved" : ""}</div>
+          <TextArea value={text} onChange={(ev) => { setText(ev.target.value); setSaved(""); }} onBlur={save} onSubmit={save} minRows={3} placeholder="What was said, what was decided" aria-label="Notes for this meeting" />
+        </>
+      )}
     </div>
   );
 }

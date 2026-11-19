@@ -43,7 +43,12 @@ normally:
 - "Plan my week." It finds the open time between your meetings and proposes time blocks, and
   sets them only after your yes.
 - "Add a note to my 2 o'clock: ..." or "add a task to my meeting with Sam."
-- "Log that I finished the budget draft." "What did I do on Tuesday?"
+- "Log that I finished the budget draft." "What did I do on Tuesday?" Every time you ask it to
+  update the log, it looks again at the mail you sent, your calendar and your meeting notes, and
+  writes the day up with one line for each thing you worked on. Meeting notes become a short
+  summary of each meeting, never tasks.
+- "I skipped the newsletter block and did the budget instead." It records how the time you set
+  aside went.
 - "That was wrong, undo it."
 
 After each change it answers in one line with a link to that spot on the dashboard.
@@ -56,14 +61,20 @@ Work, Personal and Side business are three desks, each with its own color.
   (or one day) as a calendar, with your meetings and the time you set aside for tasks; and under
   it a board of rows you move tasks between: New, To do, Waiting, Back burner, To figure out.
   Drag a task onto the calendar, or click it and type "thu 9 45m", to give it time. Click a
-  meeting to see who it is with, the tasks it carries and its note.
+  meeting to see who it is with, the tasks it carries and its note. Once time you set aside has
+  begun, it asks "Did you get to it?": Yes, No, or Something else (and what). Each answer looks
+  different on the week, so you can see at a glance which blocks you kept.
 - **Tasks**: every task. A task is one line; people, a due date, tags, notes and a project are
   all optional. You can type a whole one: `Send the report @sam fri #budget`.
 - **People**: for each person, the list for your next 1:1 with them and everything else they are
   on. A task that names someone shows up on their page by itself.
 - **Projects** and **Notes**: plain lists.
-- **Log**: your daily log, day by day: what you worked on, written up by your chatbot, and the
-  things you told it you did, in your words.
+- **Log**: your daily log, kept like a journal: a list of days to tap open, a Today button, a
+  calendar of the days you logged, and a search. Each day is what you worked on, written up by
+  your chatbot, with the things you told it folded in. Work on a project sits under the
+  project's name, the same every day.
+
+![The Log: a list of days, and the open day beside it](docs/screenshots/log.png)
 
 ![A person's page: the next 1:1 list and everything with them](docs/screenshots/person.png)
 

@@ -9,12 +9,13 @@ Two scheduled Claude tasks exist, one for each end of the day:
 | Task | When | Where it runs | What it does |
 | --- | --- | --- | --- |
 | [Morning brief](morning-brief.md) | Weekdays, 6:45 AM New York time | A Claude Code cloud session | Writes a short brief from his calendar and what is on the dashboard. It shows as one line at the top of the dashboard. |
-| [Daily log](daily-log.md) | Weekdays, 4:45 PM New York time | Claude Duet | Writes up the day (meetings, mail he sent, tasks added and finished) into his daily log, files a note for each 1:1 that has meeting notes, then asks him what else he worked on. |
+| [Daily log](daily-log.md) | Weekdays, 10:30 PM New York time | Claude Duet | Makes sure the day's log is complete (the mail he sent, his calendar, a short Granola summary of each meeting, tasks added and finished) and files a note for each 1:1 that has meeting notes. Asks him nothing. Only on a day he added nothing to the log himself, it emails him what it wrote. |
 
 The morning brief reaches the dashboard with `curl` to the MCP endpoint (a plain `tools/call`
 works without a session) and uses four tools: `morning_brief_data`, `get_person`, `save_digest`
 and `log_run`. The daily log uses the owner's own connectors in Claude Duet (the dashboard, his
-email, Granola) and four tools: `get_daily_log`, `save_daily_log`, `add_entry` and `log_run`.
+email, Granola) and four tools: `get_daily_log`, `save_daily_log`, `add_entry` and `log_run`. It
+sends one email to the owner himself, and only on a day the log was empty until it ran.
 Do not rename or remove any of those without changing the prompt and the scheduled task.
 
 ## Setting up or changing the morning brief

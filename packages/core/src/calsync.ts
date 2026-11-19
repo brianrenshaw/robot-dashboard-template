@@ -47,12 +47,14 @@ export interface CalendarEvent {
   url: string | null;
   /** Set when the event is a 1:1 with this person. */
   person_id: string | null;
+  /** How many other people are on it (rooms left out). 0 is time by himself. null: not known yet. */
+  guests: number | null;
 }
 
 const ONE_ON_ONE = /\b1\s*[:\-]\s*1\b|\bone[ -]on[ -]one\b/i;
 /** A meeting with more guests than this is a crowd, not a meeting "with" each of them. */
 const SMALL_MEETING = 8;
-const COLS = ["id", "account", "area", "title", "starts_at", "ends_at", "all_day", "day", "location", "url", "person_id"] as const;
+const COLS = ["id", "account", "area", "title", "starts_at", "ends_at", "all_day", "day", "location", "url", "person_id", "guests"] as const;
 
 /** Replace one account's cached events with what Google just returned. Returns how many were kept. */
 export async function storeCalendarEvents(ctx: Ctx, account: { email: string; area: Area }, events: GoogleEvent[], timezone: string): Promise<number> {
@@ -127,6 +129,7 @@ export async function storeCalendarEvents(ctx: Ctx, account: { email: string; ar
       location: (e.location ?? "").slice(0, 300),
       url: e.htmlLink ?? null,
       person_id: personId,
+      guests: guests.length,
     });
   }
 

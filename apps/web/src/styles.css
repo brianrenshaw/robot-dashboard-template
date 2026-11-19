@@ -431,9 +431,29 @@ a.plan-ev:hover { filter: brightness(0.97); }
 .plan-ev.mine small, .plan-blk small { color: rgba(255, 255, 255, 0.8); }
 .plan-ev.mine:hover, .plan-blk:hover { filter: brightness(1.06); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--desk, var(--accent)) 60%, transparent); }
 .plan-ev.mine.lit { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--desk, var(--accent)); }
-.plan-blk.done { opacity: 0.55; }
+.plan-blk.done { opacity: 0.7; }
 .plan-blk.done b { text-decoration: line-through; }
 .plan-blk.editing { opacity: 0.25; }
+/* How time he set aside went. Each answer looks different, and none of them hides the block:
+   done is solid with a check; not done and "something else" are outlines (the time did not go
+   to this), told apart by a cross or an arrow; begun with no answer yet carries an open ring. */
+.plan-st { position: absolute; top: 3px; right: 4px; width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center; font-size: 9.5px; font-weight: 800; font-style: normal; line-height: 1; }
+.plan-week.day .plan-st { top: 5px; right: 6px; width: 17px; height: 17px; font-size: 11px; }
+.plan-blk:has(.plan-st) b, .plan-ev:has(.plan-st) b { padding-right: 15px; }
+.plan-blk.kept .plan-st, .plan-ev.kept .plan-st { background: #fff; color: var(--desk, var(--accent)); }
+.plan-blk.open .plan-st, .plan-ev.open .plan-st { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.85); }
+.plan-blk.skipped, .plan-ev.mine.skipped, .plan-blk.swapped, .plan-ev.mine.swapped { background: var(--surface); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--desk, var(--accent)) 55%, var(--surface)); }
+.plan-blk.skipped, .plan-ev.mine.skipped { box-shadow: none; outline: 1.5px dashed color-mix(in srgb, var(--idle) 70%, var(--surface)); outline-offset: -1.5px; }
+.plan-blk.skipped b, .plan-ev.mine.skipped b { color: var(--muted) !important; font-weight: 550; }
+.plan-blk.swapped b, .plan-ev.mine.swapped b { color: var(--muted) !important; font-weight: 550; }
+.plan-blk.skipped small, .plan-ev.mine.skipped small { color: var(--faint); }
+.plan-blk.swapped small, .plan-ev.mine.swapped small { color: var(--faint); }
+.plan-blk.swapped small.inst, .plan-ev.mine.swapped small.inst { color: var(--fg); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-blk.skipped .plan-st, .plan-ev.skipped .plan-st { background: var(--field); color: var(--muted); }
+.plan-blk.swapped .plan-st, .plan-ev.swapped .plan-st { background: var(--desk, var(--accent)); color: #fff; }
+.plan-blk.skipped:hover, .plan-ev.mine.skipped:hover, .plan-blk.swapped:hover, .plan-ev.mine.swapped:hover { filter: none; background: var(--field); }
+.plan-panel .kept .field { flex-basis: 100%; }
+.plan-panel .kept input { margin-top: 2px; font-size: 13.5px; font-weight: 500; }
 .plan-blk.preview { background: color-mix(in srgb, var(--desk, var(--accent)) 18%, var(--surface)); color: var(--fg); box-shadow: inset 0 0 0 1.5px var(--desk, var(--accent)); z-index: 5; pointer-events: none; }
 .plan-blk.preview b { color: var(--fg) !important; }
 .plan-blk.preview.clash { background: color-mix(in srgb, var(--late) 10%, transparent); box-shadow: inset 0 0 0 1.5px var(--late); }
@@ -444,6 +464,7 @@ a.plan-ev:hover { filter: brightness(0.97); }
 .plan-boardhead h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
 .plan-boardhead button { height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .plan-boardhead button:hover { background: var(--field-hover); color: var(--fg); }
+.plan-boardhead > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
 .plan-boardfold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 320ms var(--ease-out); }
 .plan-boardfold > div { min-height: 0; overflow: hidden; padding: 2px; margin: 0 -2px; transition: opacity 200ms var(--ease-out) 100ms; }
 .plan-boardfold.shut { grid-template-rows: 0fr; }
@@ -525,7 +546,7 @@ body.plan-dragging, body.plan-dragging * { user-select: none; -webkit-user-selec
 .plan-panel .read.clash { color: var(--late); }
 .plan-panel .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .plan-panel .lbl { width: 100%; font-size: 11px; font-weight: 650; color: var(--faint); margin-bottom: -2px; }
-.plan-panel .chip { height: 28px; padding: 0 10px; border-radius: 999px; background: var(--field); font-size: 12.5px; font-weight: 550; font-variant-numeric: tabular-nums; }
+.plan-panel .chip { height: 28px; padding: 0 10px; border-radius: 999px; background: var(--field); color: var(--fg); font-size: 12.5px; font-weight: 550; font-variant-numeric: tabular-nums; }
 .plan-panel .lanes .chip { height: 26px; font-size: 12px; }
 .plan-panel .chip:hover { background: var(--field-hover); }
 .plan-panel .chip[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
@@ -592,6 +613,8 @@ button.plan-ev:hover { filter: brightness(0.97); }
 .md table { border-collapse: collapse; }
 .md td, .md th { padding: 3px 10px 3px 0; box-shadow: inset 0 -1px 0 var(--line); text-align: left; }
 .md hr { border: 0; height: 1px; background: var(--line); margin: 1em 0; }
+.md.daylog h1, .md.daylog h2, .md.daylog h3 { font-size: 14.5px; font-weight: 650; letter-spacing: -0.005em; margin-top: 1.5em; }
+.md.daylog > :first-child { margin-top: 0; }
 .md.brief h2, .md.brief h3 { font-size: 12px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 
 /* ---------- small utilities ---------- */
@@ -610,3 +633,68 @@ button.plan-ev:hover { filter: brightness(0.97); }
   .field-pill { font-size: 14px; min-height: 32px; }
   input, textarea, select { font-size: 16px; }
 }
+
+/* ---------- the Log page: a list of days, and the open day beside it ---------- */
+.log { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: 36px; align-items: start; max-width: 1080px; }
+.log-side { position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow-y: auto; overscroll-behavior: contain; padding: 2px 6px 16px 2px; margin: -2px -6px 0 -2px; }
+.log-bar { display: flex; align-items: center; gap: 6px; position: sticky; top: 0; z-index: 2; background: var(--paper); padding-bottom: 10px; }
+.log-btn { height: 34px; min-width: 34px; padding: 0 12px; border-radius: 10px; background: var(--field); font-size: 13px; font-weight: 600; display: inline-grid; place-items: center; color: var(--fg); }
+.log-btn:hover { background: var(--field-hover); }
+.log-btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.log-btn:has(svg) { padding: 0; }
+.log-search { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; height: 34px; padding: 0 10px; border-radius: 10px; background: var(--field); }
+.log-search:focus-within { box-shadow: 0 0 0 3px var(--accent-soft), inset 0 0 0 1px var(--accent); }
+.log-search .field { flex: 1; min-width: 0; height: 32px; padding: 0; background: none; box-shadow: none; font-size: 13.5px; }
+.log-search .field::-webkit-search-cancel-button { cursor: pointer; }
+.log-none { font-size: 13.5px; color: var(--faint); padding: 8px 2px; }
+.log-list h3 { font-size: 12px; font-weight: 650; color: var(--faint); padding: 14px 8px 6px; }
+.log-list section:first-child h3 { padding-top: 4px; }
+.log-item { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: start; padding: 9px 8px; border-radius: 12px; }
+.log-item + .log-item { margin-top: 1px; }
+.log-item:hover { background: var(--field); }
+.log-item.on { background: var(--surface); box-shadow: var(--shadow-1, 0 1px 2px rgba(20, 20, 40, 0.08)); }
+.log-date { display: grid; justify-items: center; align-content: center; height: 48px; border-radius: 10px; background: var(--field); }
+.log-item.on .log-date { background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.log-date i { font-style: normal; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); line-height: 1.2; }
+.log-date b { font-size: 19px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--fg); }
+.log-date.today b { color: var(--late); }
+.log-text { min-width: 0; padding-top: 1px; }
+.log-text b { display: block; font-size: 13.5px; font-weight: 650; line-height: 1.3; color: var(--fg); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.log-text > span { margin-top: 2px; font-size: 12.5px; line-height: 1.4; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.log-text mark { background: color-mix(in srgb, var(--soon) 26%, transparent); color: var(--fg); border-radius: 3px; padding: 0 1px; }
+.log-entry { min-width: 0; background: var(--surface); border-radius: 16px; box-shadow: var(--shadow-1, 0 1px 2px rgba(20, 20, 40, 0.08)); padding: 22px 26px 30px; min-height: 240px; animation: log-in 220ms var(--ease-out) both; }
+@keyframes log-in { from { opacity: 0; transform: translateY(4px); } }
+.log-entry header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.log-entry h2 { font-size: 20px; font-weight: 650; letter-spacing: -0.015em; line-height: 1.25; }
+.log-entry header span { display: block; margin-top: 2px; font-size: 13px; color: var(--faint); }
+.log-step { display: flex; gap: 2px; flex: none; }
+.log-step button, .log-cal .head button { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; color: var(--muted); }
+.log-step button:hover:not(:disabled), .log-cal .head button:hover:not(:disabled) { background: var(--field); color: var(--fg); }
+.log-step button:disabled, .log-cal .head button:disabled { opacity: 0.3; }
+.log-step svg, .log-cal .head svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.log-back { display: none; align-items: center; gap: 5px; height: 32px; margin: -6px 0 10px -6px; padding: 0 8px; border-radius: 9px; font-size: 13px; font-weight: 550; color: var(--muted); }
+.log-back:hover { background: var(--field); color: var(--fg); }
+.log-cal { padding: 4px 4px 6px; }
+.log-cal .head { display: flex; align-items: center; justify-content: space-between; padding: 0 0 6px; }
+.log-cal .head b { font-size: 13.5px; font-weight: 650; }
+.log-cal .grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; justify-items: center; }
+.log-cal .grid i { font-style: normal; font-size: 10.5px; font-weight: 650; color: var(--faint); height: 22px; display: grid; place-items: center; }
+.log-cal .grid button { width: 32px; height: 32px; border-radius: 50%; font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--fg); position: relative; }
+.log-cal .grid button::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.log-cal .grid button:hover:not(:disabled) { background: var(--field); }
+.log-cal .grid button:disabled { color: var(--faint); font-weight: 450; opacity: 0.6; }
+.log-cal .grid button:disabled::after { display: none; }
+.log-cal .grid button.today { color: var(--late); }
+.log-cal .grid button.on { background: var(--accent); color: var(--on-accent); }
+.log-cal .grid button.on::after { background: var(--on-accent); }
+/* A phone shows one thing at a time: the list, or the open day with a way back. */
+@media (max-width: 860px) {
+  .log { display: block; }
+  .log-side { position: static; max-height: none; overflow: visible; }
+  .log-bar { position: static; }
+  .log:not(.has-day) .log-entry { display: none; }
+  .log.has-day .log-side { display: none; }
+  .log-back { display: inline-flex; }
+  .log-entry { padding: 16px 16px 24px; }
+}
+@media (prefers-reduced-motion: reduce) { .log-entry { animation: none; } }

@@ -199,6 +199,10 @@ async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
         thing = `the log for ${row.day}`;
         link = "/log";
         break;
+      case "block_results":
+        thing = `the time set aside for “${row.title}” on ${row.day}`;
+        link = "/";
+        break;
       case "settings":
         thing = `setting ${row.key}`;
         link = "/settings";
@@ -247,6 +251,7 @@ async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
         else if (r.table_name === "projects") summary = `${who} created project ${thing}`;
         else if (r.table_name === "digests") summary = `${who} saved ${thing}`;
         else if (r.table_name === "daily_logs") summary = `${who} started ${thing}`;
+        else if (r.table_name === "block_results") summary = `${who} started keeping track of ${thing}`;
         else if (r.table_name === "queue_items") summary = `${who} queued ${thing}`;
         else if (r.table_name === "one_on_ones") summary = `${who} started ${thing}`;
         else if (r.table_name === "connection_secrets") summary = `${who} saved ${thing}`;
@@ -263,6 +268,19 @@ async function describeAudit(db: Db, rows: AuditRow[]): Promise<AuditView[]> {
         if (r.table_name === "daily_logs") {
           // The written-up day changed, or he only jotted something down.
           summary = keys.includes("body") ? `${who} wrote up ${thing}` : `${who} added a note to ${thing}`;
+        } else if (r.table_name === "block_results") {
+          // Three answers: he did the work, he did not get to it, or he did something else (and what).
+          const instead = String(after?.instead ?? "").trim();
+          summary =
+            !keys.includes("kept") && !keys.includes("instead")
+              ? `${who} updated ${thing}`
+              : after?.kept === 1
+                ? `${who} marked ${thing} as used`
+                : after?.kept === 0
+                  ? instead
+                    ? `${who} said ${thing} went to something else: ${instead}`
+                    : `${who} marked ${thing} as not used`
+                  : `${who} cleared the answer for ${thing}`;
         } else if (r.table_name === "agenda_items" && keys.includes("status")) {
           const to = String(after?.status);
           const whose = personNames.get(row.person_id) ?? "someone";

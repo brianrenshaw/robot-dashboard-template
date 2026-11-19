@@ -152,6 +152,8 @@ export function SpaceTabs() {
     { to: `${base}/people`, label: "People" },
     { to: `${base}/projects`, label: "Projects" },
     { to: `${base}/notes`, label: "Notes" },
+    // One log for every desk, so it has one address.
+    { to: "/log", label: "Log" },
   ];
   return (
     <nav className="hidden gap-6 md:flex" aria-label="Sections">

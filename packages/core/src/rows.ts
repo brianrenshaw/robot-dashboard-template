@@ -63,7 +63,8 @@ export const TABLES: Record<string, TableDef> = {
   entry_tags: { pk: ["entry_id", "tag_id"], join: true, columns: ["entry_id", "tag_id"] },
   digests: { pk: ["id"], columns: ["id", "run_date", "body", "created_by", "created_at"] },
   time_blocks: { pk: ["id"], soft: "deleted_at", columns: ["id", "task_id", "day", "start_min", "minutes", "created_by", "created_at", "updated_at", "deleted_at"] },
-  daily_logs: { pk: ["day"], columns: ["day", "body", "notes", "created_by", "created_at", "updated_at"] },
+  block_results: { pk: ["ref", "day"], columns: ["ref", "day", "start_min", "minutes", "title", "task_id", "kept", "instead", "created_by", "created_at", "updated_at"] },
+  daily_logs: { pk: ["day"], columns: ["day", "body", "notes", "notes_folded", "created_by", "created_at", "updated_at"] },
   settings: { pk: ["key"], columns: ["key", "value"] },
   queue_items: {
     pk: ["id"],

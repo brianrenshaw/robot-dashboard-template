@@ -15,7 +15,7 @@ import {
   importOmniFocus, listOneOnOnes, getOneOnOne, getTagView, listTasks, taskFilterSchema, 
   createSavedView, deleteSavedView, listSavedViews, openSavedView, updateSavedView, setOneOnOne,
   clearSecret, disconnectGoogleAccount, finishGoogleSignIn, googleKeys, googleSignInUrl,
-  listGoogleAccounts, listSecrets, runSync, addTimeBlock, updateTimeBlock, deleteTimeBlock, saveMeetingNote, saveGoogleAccount, setGoogleAccountArea, setSecret, signValue, lastAuditBy, latestRuns, listDailyLogs,
+  listGoogleAccounts, listSecrets, runSync, addTimeBlock, updateTimeBlock, deleteTimeBlock, saveBlockResult, blockTally, addDays, saveMeetingNote, saveGoogleAccount, setGoogleAccountArea, setSecret, signValue, lastAuditBy, latestRuns, listDailyLogs, logDays, getDailyLog,
   type Area, type Ctx, type Db, type EntryKind, type ProjectFilter, type ProjectStatus, type SyncEnv,
 } from "@pd/core";
 import { verifyAccess, type AccessEnv } from "@pd/core";
@@ -199,6 +199,24 @@ app.post("/api/tasks/:id/delete", async (c) => {
 
 // ---------- time blocks (the planner) ----------
 app.post("/api/blocks", async (c) => c.json(await addTimeBlock(c.var.ctx, await body(c)), 201));
+// Whether he did the work in a session of his own time (a block, or a calendar entry by himself).
+app.put("/api/blocks/result", async (c) => {
+  const b = (await body(c)) as { ref?: unknown; kept?: unknown; instead?: unknown; day?: unknown };
+  return c.json(
+    await saveBlockResult(c.var.ctx, {
+      ref: String(b.ref ?? ""),
+      kept: b.kept === null ? null : !!b.kept,
+      // What he did in that time instead: only when the page sends it.
+      instead: typeof b.instead === "string" ? b.instead : undefined,
+      day: typeof b.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.day) ? b.day : undefined,
+    }),
+  );
+});
+app.get("/api/blocks/tally", async (c) => {
+  const today = todayInTz((await getSettings(c.var.db)).timezone);
+  const days = Math.min(Math.max(Number(c.req.query("days")) || 28, 1), 366);
+  return c.json(await blockTally(c.var.db, addDays(today, -(days - 1)), today));
+});
 app.patch("/api/blocks/:id", async (c) => c.json(await updateTimeBlock(c.var.ctx, c.req.param("id"), await body(c))));
 app.post("/api/blocks/:id/delete", async (c) => {
   await deleteTimeBlock(c.var.ctx, c.req.param("id"));
@@ -234,7 +252,12 @@ app.post("/api/people/:id/restore", async (c) => c.json(await restorePerson(c.va
 app.get("/api/runs", async (c) => c.json(await latestRuns(c.var.db)));
 
 // The daily log, newest day first. It is written by the chatbot; the site only shows it.
-app.get("/api/log", async (c) => c.json(await listDailyLogs(c.var.db, { limit: Number(c.req.query("limit")) || 60 })));
+// `q` keeps the days whose text has every word (the Log page's search).
+app.get("/api/log", async (c) => c.json(await listDailyLogs(c.var.db, { limit: Number(c.req.query("limit")) || 60, q: c.req.query("q") || undefined })));
+// Every day that has a log: what the Log page's calendar marks.
+app.get("/api/log/days", async (c) => c.json(await logDays(c.var.db)));
+// One day, for a day opened from the calendar that the list has not loaded. null when nothing was logged.
+app.get("/api/log/:day", async (c) => c.json(await getDailyLog(c.var.db, c.req.param("day"))));
 
 // ---------- 1:1s ----------
 app.get("/api/one-on-ones", async (c) => c.json(await listOneOnOnes(c.var.db, areasOf(c.req.query("areas")))));
